@@ -81,7 +81,7 @@ Ejecuta los scripts desde la raíz del repositorio y en este orden:
 
 Se requiere Python y los paquetes usados directamente por los scripts:
 `pandas`, `numpy`, `openpyxl`, `matplotlib`, `seaborn`, `scikit-learn`,
-`xgboost`, `scipy`, `joblib` y `streamlit`.
+`xgboost`, `scipy`, `joblib`, `streamlit` y `plotly`.
 
 En Windows se puede crear y activar un entorno virtual e instalar los paquetes
 con:
@@ -90,12 +90,11 @@ con:
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-python -m pip install pandas numpy openpyxl matplotlib seaborn scikit-learn xgboost scipy joblib streamlit
+python -m pip install -r .\requirements.txt
 ```
 
-`requirements.txt` y `set_up.bat` están vacíos en el estado actual del
-repositorio; por ello, la instalación anterior enumera explícitamente los
-paquetes y todavía no puede sustituirse por `pip install -r requirements.txt`.
+`set_up.bat` todavía está vacío; por ahora, crea el entorno e instala las
+dependencias con los comandos anteriores.
 
 ## Artefactos generados
 
