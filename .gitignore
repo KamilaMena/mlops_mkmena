@@ -1,1 +1,6 @@
-outputs/
+outputs/reports
+outputs/graficos_eda
+outputs/Contexto
+eda_analisis2.py
+.venv/
+__pycache__/

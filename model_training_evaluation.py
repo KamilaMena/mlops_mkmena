@@ -351,6 +351,35 @@ pd.DataFrame([metricas_finales]).to_csv(
     index=False
 )
 
+# 12.1 Justificación de la selección del modelo
+
+mejor = tabla_resultados.loc[0]
+segundo = tabla_resultados.loc[1]
+mas_estable = tabla_resultados.loc[tabla_resultados['Recall_Desv'].idxmin()]
+mas_rapido = tabla_resultados.loc[tabla_resultados['Tiempo_entrenamiento'].idxmin()]
+mas_lento = tabla_resultados.loc[tabla_resultados['Tiempo_entrenamiento'].idxmax()]
+
+justificacion = f"""JUSTIFICACIÓN DEL MODELO SELECCIONADO: {mejor_nombre}
+
+1. Desempeño: tiene el mayor recall en validación cruzada ({mejor['Recall_CV']:.3f}; el segundo,
+   {segundo['Modelo']}, obtiene {segundo['Recall_CV']:.3f}), con F1 {mejor['F1_CV']:.3f} y PR-AUC
+   {mejor['PR_AUC_CV']:.3f}. Se prioriza el recall porque en riesgo crediticio no detectar un
+   incumplimiento cuesta más que revisar una solicitud buena, y la clase de incumplimiento es minoritaria (4,75 %).
+2. Consistencia: la desviación del recall entre los {NUM_PARTICIONES} pliegues es {mejor['Recall_Desv']:.3f}
+   (el modelo más estable es {mas_estable['Modelo']}, con {mas_estable['Recall_Desv']:.3f}).
+3. Escalabilidad: entrena en {mejor['Tiempo_entrenamiento']:.2f} s y predice en
+   {mejor['Tiempo_prediccion']:.2f} s por pliegue (el más rápido en entrenar es {mas_rapido['Modelo']},
+   el más lento {mas_lento['Modelo']}).
+4. Evaluación final en el conjunto de prueba: recall {metricas_finales['Recall']:.3f},
+   precisión {metricas_finales['Precision']:.3f}, F1 {metricas_finales['F1-Score']:.3f},
+   PR-AUC {metricas_finales['PR-AUC']:.3f}.
+   Limitación: la precisión es baja, así que habrá muchas falsas alarmas; el umbral de decisión
+   debe ajustarse con el negocio (el simulador de umbral de la app Streamlit sirve para eso).
+"""
+
+print(justificacion)
+(CARPETA_REPORTES / 'justificacion_modelo.txt').write_text(justificacion, encoding='utf-8')
+
 
 # 13. Generar gráfico comparativo de rendimiento
 

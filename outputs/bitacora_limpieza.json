@@ -1,0 +1,37 @@
+{
+    "filas_originales": 10763,
+    "filas_finales": 10613,
+    "filas_eliminadas_por_edad": 150,
+    "edades_eliminadas_por_valor": {
+        "121": 4,
+        "122": 144,
+        "123": 2
+    },
+    "valores_puntaje_negativos_convertidos_a_faltantes": 130,
+    "valores_datacredito_menores_150_convertidos_a_faltantes": 2,
+    "nulos_por_columna_despues_de_limpieza": {
+        "tipo_credito": 0,
+        "fecha_prestamo": 0,
+        "capital_prestado": 0,
+        "plazo_meses": 0,
+        "edad_cliente": 0,
+        "tipo_laboral": 0,
+        "salario_cliente": 0,
+        "total_otros_prestamos": 0,
+        "cuota_pactada": 0,
+        "puntaje": 130,
+        "puntaje_datacredito": 5,
+        "cant_creditosvigentes": 0,
+        "huella_consulta": 0,
+        "saldo_mora": 7,
+        "saldo_total": 7,
+        "saldo_principal": 256,
+        "saldo_mora_codeudor": 440,
+        "creditos_sectorFinanciero": 0,
+        "creditos_sectorCooperativo": 0,
+        "creditos_sectorReal": 0,
+        "promedio_ingresos_datacredito": 2780,
+        "tendencia_ingresos": 2782,
+        "Pago_atiempo": 0
+    }
+}
