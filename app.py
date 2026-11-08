@@ -702,6 +702,7 @@ with tab_modelo:
     imagenes = [
         ("comparacion_metricas.png", "Comparación de métricas"),
         ("consistencia_modelos.png", "Consistencia del recall"),
+        ("curva_roc.png", "Curva ROC del modelo seleccionado"),
     ]
     disponibles = [(CARPETA_REPORTES / f, t) for f, t in imagenes if (CARPETA_REPORTES / f).exists()]
     if disponibles:

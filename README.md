@@ -55,33 +55,39 @@ reglas de preparación y exclusión de variables están descritas en
 - Las diferencias entre grupos son descriptivas; por sí solas no prueban una
   relación causal.
 
-El resumen del EDA y sus tablas auxiliares se guardan bajo `outputs/`. Las
-gráficas del análisis se guardan en `outputs/graficos_eda/`.
+Las tablas del EDA se muestran al ejecutar sus celdas y las gráficas se guardan
+en `outputs/graficos_eda/`.
 
 ## Flujo del proyecto
 
-Ejecuta los scripts desde la raíz del repositorio y en este orden:
+Ejecuta los archivos desde la raíz del repositorio y en este orden:
 
-1. `cargar_datos.py`: carga el CSV o Excel disponible e imprime dimensiones,
-   filas iniciales, tipos y valores faltantes. No modifica ni guarda los datos.
-2. `eda_analisis.py`: realiza análisis exploratorio y genera gráficas.
-3. `ft_engineering.py`: aplica reglas de preparación, divide los datos de
-   forma estratificada, ajusta imputación/codificación con entrenamiento y
-   escribe los datasets de entrenamiento y prueba.
-4. `model_training_evaluation.py`: compara Regresión Logística, Árbol de
+1. `eda_analisis.py`: realiza el análisis exploratorio. En VS Code, abre el
+   archivo y usa **Run All Cells** para ejecutar las celdas `# %%` y ver las
+   gráficas. También se puede ejecutar como script desde la terminal, aunque
+   en ese modo las gráficas no se muestran interactivamente.
+2. `ft_engineering.py`: aplica reglas de preparación, divide los datos de
+   forma estratificada, ajusta imputación, transformaciones logarítmicas,
+   escalado y codificación solo con entrenamiento, y escribe los datasets
+   transformados y el preprocesador reutilizable.
+3. `model_training_evaluation.py`: compara Regresión Logística, Árbol de
    Decisión, Random Forest y XGBoost mediante validación cruzada estratificada;
    selecciona el modelo según recall y métricas complementarias, y guarda el
    modelo y los resultados.
-5. `model_monitoring.py`: genera predicciones para el conjunto de prueba y
+4. `model_monitoring.py`: genera predicciones para el conjunto de prueba y
    calcula métricas de drift frente al conjunto de entrenamiento.
-6. `app.py`: presenta reportes y evolución del drift en una aplicación
+5. `app.py`: presenta reportes y evolución del drift en una aplicación
    Streamlit.
+
+`cargar_datos.py` no se ejecuta por separado: los archivos que necesitan los
+datos lo importan y cargan el CSV o Excel disponible en la raíz del proyecto.
 
 ## Entorno y dependencias
 
 Se requiere Python y los paquetes usados directamente por los scripts:
 `pandas`, `numpy`, `openpyxl`, `matplotlib`, `seaborn`, `scikit-learn`,
-`xgboost`, `scipy`, `joblib`, `streamlit` y `plotly`.
+`xgboost`, `scipy`, `joblib`, `streamlit`, `plotly` e `ipykernel` (para
+ejecutar las celdas del archivo `.py` desde VS Code).
 
 En Windows se puede crear y activar un entorno virtual e instalar los paquetes
 con:
@@ -93,8 +99,10 @@ python -m pip install --upgrade pip
 python -m pip install -r .\requirements.txt
 ```
 
-`set_up.bat` todavía está vacío; por ahora, crea el entorno e instala las
-dependencias con los comandos anteriores.
+También se puede crear e instalar el entorno ejecutando `set_up.bat` desde la
+raíz del proyecto. Al terminar, activa el entorno en la terminal actual con
+`.\.venv\Scripts\Activate.ps1`. El archivo `requirements.txt` incluye
+`ipykernel` para ejecutar las celdas `# %%` en VS Code.
 
 ## Artefactos generados
 
@@ -106,8 +114,10 @@ Los scripts crean sus resultados dentro de `outputs/`:
 | `outputs/datasets/dataset_train.csv` | Datos transformados de entrenamiento. |
 | `outputs/datasets/dataset_test.csv` | Datos transformados de evaluación. |
 | `outputs/models/mejor_modelo.joblib` | Modelo seleccionado y entrenado. |
+| `outputs/models/preprocesador.joblib` | Preprocesador ajustado con el conjunto de entrenamiento para transformar datos nuevos de la misma forma. |
 | `outputs/reports/comparacion_modelos.csv` | Métricas promedio de validación cruzada. |
 | `outputs/reports/evaluacion_final.csv` | Métricas del modelo seleccionado sobre el conjunto de evaluación. |
+| `outputs/reports/curva_roc.png` | Curva ROC del modelo seleccionado sobre el conjunto de evaluación. |
 | `outputs/reports/reporte_data_drift.csv` | Métricas de drift de la ejecución más reciente. |
 | `outputs/reports/historial_data_drift.csv` | Historial de ejecuciones de monitoreo. |
 | `outputs/reports/datos_monitoreo.csv` | Registros de evaluación con predicciones y probabilidades. |

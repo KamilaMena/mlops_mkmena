@@ -9,8 +9,6 @@ from pathlib import Path
 from time import time
 
 from sklearn.model_selection import StratifiedKFold, cross_validate
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
@@ -20,6 +18,7 @@ from sklearn.metrics import (
     recall_score,
     f1_score,
     roc_auc_score,
+    roc_curve,
     average_precision_score,
     confusion_matrix,
     ConfusionMatrixDisplay
@@ -96,14 +95,11 @@ def build_model(nombre_modelo, peso_clase):
 
     if nombre_modelo == 'Regresión Logística':
 
-        modelo = Pipeline(steps=[
-            ('escalador', StandardScaler()),
-            ('clasificador', LogisticRegression(
-                class_weight='balanced',
-                max_iter=2000,
-                random_state=RANDOM_STATE
-            ))
-        ])
+        modelo = LogisticRegression(
+            class_weight='balanced',
+            max_iter=2000,
+            random_state=RANDOM_STATE
+        )
 
     elif nombre_modelo == 'Árbol de Decisión':
 
@@ -461,6 +457,33 @@ plt.savefig(
 
 plt.close()
 
+# 15.1 Generar la curva ROC del mejor modelo
+
+tasa_falsos_positivos, tasa_verdaderos_positivos, _ = roc_curve(
+    y_test,
+    probabilidades
+)
+
+plt.figure(figsize=(7, 6))
+plt.plot(
+    tasa_falsos_positivos,
+    tasa_verdaderos_positivos,
+    label=f'{mejor_nombre} (AUC = {metricas_finales["ROC-AUC"]:.3f})'
+)
+plt.plot([0, 1], [0, 1], linestyle='--', color='gray', label='Clasificador aleatorio')
+plt.title('Curva ROC del modelo seleccionado')
+plt.xlabel('Tasa de falsos positivos')
+plt.ylabel('Tasa de verdaderos positivos')
+plt.xlim(0, 1)
+plt.ylim(0, 1.05)
+plt.legend(loc='lower right')
+plt.tight_layout()
+plt.savefig(
+    CARPETA_REPORTES / 'curva_roc.png',
+    dpi=300
+)
+plt.close()
+
 
 # 16. Generar gráfico de tiempos de entrenamiento
 
@@ -508,6 +531,7 @@ print('- outputs/reports/evaluacion_final.csv')
 print('- outputs/reports/comparacion_metricas.png')
 print('- outputs/reports/consistencia_modelos.png')
 print('- outputs/reports/matriz_confusion.png')
+print('- outputs/reports/curva_roc.png')
 print('- outputs/reports/tiempos_entrenamiento.png')
 
 print('\nTodos los procesos finalizaron correctamente.')

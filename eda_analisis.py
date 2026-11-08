@@ -20,6 +20,13 @@ sns.set_theme(style='whitegrid')
 pd.set_option('display.max_columns', 50)
 pd.set_option('display.width', 200)
 
+CARPETA_GRAFICOS = Path.cwd() / 'outputs' / 'graficos_eda'
+CARPETA_GRAFICOS.mkdir(parents=True, exist_ok=True)
+
+
+def guardar_grafica(nombre):
+    plt.savefig(CARPETA_GRAFICOS / nombre, dpi=130, bbox_inches='tight')
+
 # %% [markdown]
 # #### **1.1 Carga y revisión inicial**
 #
@@ -297,6 +304,7 @@ for ax in axes.ravel()[len(numericas):]:
     ax.axis('off')
 plt.suptitle('Histogramas (recortados al percentil 99 para poder ver la forma)', fontsize=14)
 plt.tight_layout()
+guardar_grafica('histogramas_numericas.png')
 plt.show()
 
 # %% [markdown]
@@ -315,6 +323,7 @@ for ax, col in zip(axes.ravel(), numericas):
 for ax in axes.ravel()[len(numericas):]:
     ax.axis('off')
 plt.tight_layout()
+guardar_grafica('boxplots_numericas.png')
 plt.show()
 
 # %% [markdown]
@@ -352,6 +361,7 @@ for ax, col in zip(axes, categoricas):
     ax.set_title(col)
     ax.set_xlabel('')
 plt.tight_layout()
+guardar_grafica('frecuencias_categoricas.png')
 plt.show()
 
 # %% [markdown]
@@ -371,6 +381,7 @@ print((datos['Pago_atiempo'].value_counts(normalize=True) * 100).round(2))
 
 sns.countplot(x='Pago_atiempo', data=datos, color='steelblue')
 plt.title('Distribución de Pago_atiempo')
+guardar_grafica('distribucion_objetivo.png')
 plt.show()
 
 # %% [markdown]
@@ -391,6 +402,7 @@ for ax, col in zip(axes.ravel(), columnas):
     sns.boxplot(data=visible, x='Pago_atiempo', y=col, ax=ax)
     ax.set_title(col)
 plt.tight_layout()
+guardar_grafica('variables_numericas_por_objetivo.png')
 plt.show()
 
 # %% [markdown]
@@ -406,6 +418,20 @@ def tasa_pago(columna, grupos=None):
 
 for col in ['tipo_laboral', 'tendencia_ingresos', 'tipo_credito']:
     display(tasa_pago(col))
+
+# Tabla pivote de la tasa de pago por tipo laboral y tendencia de ingresos
+datos_pivote = datos.assign(
+    tendencia_ingresos=datos['tendencia_ingresos'].fillna('Faltante')
+)
+tabla_pivote = pd.pivot_table(
+    datos_pivote,
+    index='tipo_laboral',
+    columns='tendencia_ingresos',
+    values='Pago_atiempo',
+    aggfunc=['count', 'mean'],
+    observed=False
+)
+display(tabla_pivote.round(3))
 
 # %%
 display(tasa_pago('puntaje_datacredito', [0, 700, 750, 800, 850, 1000]))
@@ -441,6 +467,7 @@ correlacion = datos[numericas + ['Pago_atiempo']].corr()
 plt.figure(figsize=(14, 11))
 sns.heatmap(correlacion, annot=True, fmt='.2f', cmap='coolwarm', vmin=-1, vmax=1, linewidths=0.5, annot_kws={'size': 7})
 plt.title('Matriz de correlación')
+guardar_grafica('matriz_correlacion.png')
 plt.show()
 
 # %%
@@ -463,7 +490,11 @@ print(pares.head(5).round(2))
 muestra = datos[['capital_prestado', 'salario_cliente', 'puntaje_datacredito', 'huella_consulta', 'Pago_atiempo']].dropna()
 muestra = muestra[muestra['salario_cliente'] < muestra['salario_cliente'].quantile(0.99)].sample(1500, random_state=42)
 
-sns.pairplot(muestra, hue='Pago_atiempo', corner=True, plot_kws={'alpha': 0.4, 's': 12})
+sns.pairplot(muestra, hue='Pago_atiempo', corner=True, plot_kws={'alpha': 0.4, 's': 12}).savefig(
+    CARPETA_GRAFICOS / 'pairplot_por_objetivo.png',
+    dpi=130,
+    bbox_inches='tight'
+)
 plt.show()
 
 # %% [markdown]
@@ -483,6 +514,7 @@ ax2 = ax1.twinx()
 ax2.plot(mensual.index.astype(str), mensual['tasa_pago'], color='darkred', marker='o')
 ax2.set_ylabel('Tasa de pago a tiempo')
 plt.title('Volumen de créditos y tasa de pago por mes de desembolso')
+guardar_grafica('evolucion_mensual.png')
 plt.show()
 
 # %% [markdown]
