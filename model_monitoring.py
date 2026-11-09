@@ -24,6 +24,14 @@ VARIABLE_OBJETIVO = 'Pago_atiempo'
 
 # 3. Cargar los datos y el modelo
 
+datos_train_raw = pd.read_csv(
+    CARPETA_DATASETS / 'dataset_train_raw.csv'
+)
+
+datos_test_raw = pd.read_csv(
+    CARPETA_DATASETS / 'dataset_test_raw.csv'
+)
+
 datos_train = pd.read_csv(
     CARPETA_DATASETS / 'dataset_train.csv'
 )
@@ -38,10 +46,12 @@ mejor_modelo = joblib.load(
 
 # Separar las características de la variable objetivo
 
+X_train_raw = datos_train_raw.drop(columns=[VARIABLE_OBJETIVO])
+X_test_raw = datos_test_raw.drop(columns=[VARIABLE_OBJETIVO])
 X_train = datos_train.drop(columns=[VARIABLE_OBJETIVO])
 X_test = datos_test.drop(columns=[VARIABLE_OBJETIVO])
 
-y_test_original = datos_test[VARIABLE_OBJETIVO]
+y_test_original = datos_test_raw[VARIABLE_OBJETIVO]
 
 # Transformar las etiquetas para que 1 represente incumplimiento
 
@@ -55,9 +65,9 @@ if list(X_train.columns) != list(X_test.columns):
 
 # 4. Generar las predicciones
 
-predicciones = mejor_modelo.predict(X_test)
+predicciones = mejor_modelo.predict(X_test_raw)
 
-probabilidades = mejor_modelo.predict_proba(X_test)[:, 1]
+probabilidades = mejor_modelo.predict_proba(X_test_raw)[:, 1]
 
 # Crear una tabla con los datos y sus pronósticos
 

@@ -66,14 +66,13 @@ Ejecuta los archivos desde la raíz del repositorio y en este orden:
    archivo y usa **Run All Cells** para ejecutar las celdas `# %%` y ver las
    gráficas. También se puede ejecutar como script desde la terminal, aunque
    en ese modo las gráficas no se muestran interactivamente.
-2. `ft_engineering.py`: aplica reglas de preparación, divide los datos de
-   forma estratificada, ajusta imputación, transformaciones logarítmicas,
-   escalado y codificación solo con entrenamiento, y escribe los datasets
-   transformados y el preprocesador reutilizable.
+2. `ft_engineering.py`: divide los datos originales de forma estratificada y
+   guarda las particiones crudas en `outputs/datasets/*_raw.csv`.
 3. `model_training_evaluation.py`: compara Regresión Logística, Árbol de
-   Decisión, Random Forest y XGBoost mediante validación cruzada estratificada;
-   selecciona el modelo según recall y métricas complementarias, y guarda el
-   modelo y los resultados.
+   Decisión, Random Forest y XGBoost mediante validación cruzada estratificada.
+   En cada pliegue ajusta la limpieza, imputación, transformaciones, escalado y
+   codificación solo con los datos de entrenamiento del pliegue. Guarda el
+   modelo completo y los datasets transformados para el monitoreo y el panel.
 4. `model_monitoring.py`: genera predicciones para el conjunto de prueba y
    calcula métricas de drift frente al conjunto de entrenamiento.
 5. `app.py`: presenta reportes y evolución del drift en una aplicación
@@ -81,6 +80,11 @@ Ejecuta los archivos desde la raíz del repositorio y en este orden:
 
 `cargar_datos.py` no se ejecuta por separado: los archivos que necesitan los
 datos lo importan y cargan el CSV o Excel disponible en la raíz del proyecto.
+El artefacto `outputs/models/mejor_modelo.joblib` contiene limpieza,
+transformaciones y clasificador. Para puntuar datos nuevos, pásale un
+`DataFrame` con las variables predictoras requeridas (sin `Pago_atiempo`) a
+`predict` o `predict_proba`; no apliques el preprocesamiento por separado.
+Las columnas excluidas durante el EDA, como `puntaje`, no son necesarias.
 
 ## Entorno y dependencias
 
@@ -113,8 +117,9 @@ Los scripts crean sus resultados dentro de `outputs/`:
 | `outputs/graficos_eda/` | Gráficas del análisis exploratorio. |
 | `outputs/datasets/dataset_train.csv` | Datos transformados de entrenamiento. |
 | `outputs/datasets/dataset_test.csv` | Datos transformados de evaluación. |
+| `outputs/datasets/dataset_train_raw.csv` y `dataset_test_raw.csv` | Particiones originales que recibe el pipeline completo para entrenar, evaluar y predecir. |
 | `outputs/models/mejor_modelo.joblib` | Modelo seleccionado y entrenado. |
-| `outputs/models/preprocesador.joblib` | Preprocesador ajustado con el conjunto de entrenamiento para transformar datos nuevos de la misma forma. |
+| `outputs/models/preprocesador.joblib` | Pipeline de limpieza y transformación ajustado; el modelo completo también lo incluye. |
 | `outputs/reports/comparacion_modelos.csv` | Métricas promedio de validación cruzada. |
 | `outputs/reports/evaluacion_final.csv` | Métricas del modelo seleccionado sobre el conjunto de evaluación. |
 | `outputs/reports/curva_roc.png` | Curva ROC del modelo seleccionado sobre el conjunto de evaluación. |

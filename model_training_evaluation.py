@@ -9,6 +9,7 @@ from pathlib import Path
 from time import time
 
 from sklearn.model_selection import StratifiedKFold, cross_validate
+from sklearn.pipeline import Pipeline
 from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
@@ -24,6 +25,8 @@ from sklearn.metrics import (
     ConfusionMatrixDisplay
 )
 from xgboost import XGBClassifier
+
+from model_preprocessing import build_preprocessing_pipeline
 
 
 # 2. Definir las rutas y configuraciones
@@ -43,11 +46,11 @@ NUM_PARTICIONES = 5
 # 3. Cargar los datasets
 
 datos_train = pd.read_csv(
-    CARPETA_DATASETS / 'dataset_train.csv'
+    CARPETA_DATASETS / 'dataset_train_raw.csv'
 )
 
 datos_test = pd.read_csv(
-    CARPETA_DATASETS / 'dataset_test.csv'
+    CARPETA_DATASETS / 'dataset_test_raw.csv'
 )
 
 # Separar las características y la variable objetivo
@@ -143,6 +146,15 @@ def build_model(nombre_modelo, peso_clase):
     return modelo
 
 
+def build_training_pipeline(nombre_modelo, peso_clase):
+    preprocesamiento = build_preprocessing_pipeline()
+    return Pipeline(
+        steps=preprocesamiento.steps + [
+            ('modelo', build_model(nombre_modelo, peso_clase))
+        ]
+    )
+
+
 # 5. Definir la función para resumir las métricas
 
 def summarize_classification(y_real, y_predicho, probabilidades):
@@ -222,7 +234,7 @@ for nombre in nombres_modelos:
 
     print(f'Evaluando: {nombre}')
 
-    modelo = build_model(nombre, peso_clase)
+    modelo = build_training_pipeline(nombre, peso_clase)
 
     resultado_cv = cross_validate(
         modelo,
@@ -290,7 +302,7 @@ print('\nMejor modelo seleccionado:', mejor_nombre)
 
 # Construir el modelo seleccionado
 
-mejor_modelo = build_model(mejor_nombre, peso_clase)
+mejor_modelo = build_training_pipeline(mejor_nombre, peso_clase)
 
 # Entrenar con todos los datos de entrenamiento
 
@@ -333,6 +345,30 @@ print('Tiempo de predicción:', round(tiempo_prediccion_final, 4), 'segundos')
 
 CARPETA_MODELOS.mkdir(parents=True, exist_ok=True)
 CARPETA_REPORTES.mkdir(parents=True, exist_ok=True)
+
+# Guardar los datos transformados para el monitoreo y el panel
+limpieza = mejor_modelo.named_steps['limpieza']
+preprocesador = mejor_modelo.named_steps['preprocesador']
+X_train_limpio = limpieza.transform(X_train)
+X_test_limpio = limpieza.transform(X_test)
+X_train_transformado = pd.DataFrame(
+    preprocesador.transform(X_train_limpio),
+    columns=preprocesador.get_feature_names_out(),
+    index=X_train.index
+)
+X_test_transformado = pd.DataFrame(
+    preprocesador.transform(X_test_limpio),
+    columns=preprocesador.get_feature_names_out(),
+    index=X_test.index
+)
+dataset_train = X_train_transformado.assign(**{VARIABLE_OBJETIVO: y_train_original})
+dataset_test = X_test_transformado.assign(**{VARIABLE_OBJETIVO: y_test_original})
+dataset_train.to_csv(CARPETA_DATASETS / 'dataset_train.csv', index=False)
+dataset_test.to_csv(CARPETA_DATASETS / 'dataset_test.csv', index=False)
+joblib.dump(
+    mejor_modelo[:-1],
+    CARPETA_MODELOS / 'preprocesador.joblib'
+)
 
 
 # 12. Guardar la tabla comparativa y las métricas finales
@@ -535,3 +571,30 @@ print('- outputs/reports/curva_roc.png')
 print('- outputs/reports/tiempos_entrenamiento.png')
 
 print('\nTodos los procesos finalizaron correctamente.')
+
+from model_preprocessing import CreditDataCleaner
+
+limpiador = CreditDataCleaner()
+
+X_train_limpio = limpiador.fit_transform(X_train)
+
+print('\nCOMPROBACIÓN DEL PREPROCESAMIENTO')
+
+print('Dimensiones originales:', X_train.shape)
+print('Dimensiones después de limpiar:', X_train_limpio.shape)
+
+print('\nValores de tipo_credito:')
+print(X_train_limpio['tipo_credito'].value_counts(dropna=False))
+
+print('\nValores mínimos de variables monetarias:')
+
+for columna in [
+    'capital_prestado',
+    'salario_cliente',
+    'total_otros_prestamos',
+    'saldo_mora',
+    'saldo_total',
+    'saldo_mora_codeudor',
+    'promedio_ingresos_datacredito'
+]:
+    print(columna, ':', X_train_limpio[columna].min())
