@@ -598,3 +598,5 @@ for columna in [
     'promedio_ingresos_datacredito'
 ]:
     print(columna, ':', X_train_limpio[columna].min())
+
+    

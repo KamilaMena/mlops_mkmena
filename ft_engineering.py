@@ -49,6 +49,17 @@ X_test.assign(**{VARIABLE_OBJETIVO: y_test}).to_csv(
     index=False
 )
 
+# Dataset de prueba para la API (sin variable objetivo
+
+X_test.to_csv(
+    CARPETA_OUTPUTS / 'dataset_test_api.csv',
+    index=False
+)
+
+print('\nDataset para pruebas de API guardado:')
+print('Archivo: dataset_test_api.csv')
+print('Dimensiones:', X_test.shape)
+
 print('\nParticiones originales listas para el pipeline completo:')
 print('Entrenamiento:', X_train.shape)
 print('Evaluación:', X_test.shape)
