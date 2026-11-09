@@ -3,8 +3,8 @@
 Ejecutar desde la raíz del repositorio:
     streamlit run app.py
 
-Requiere haber ejecutado antes ft_engineering.py, model_training_evaluation.py
-y model_monitoring.py (genera los archivos dentro de outputs/).
+Requiere haber ejecutado antes los módulos de preparación, entrenamiento y
+monitoreo de mlops_pipeline (genera los archivos dentro de outputs/).
 Dependencias adicionales: plotly.
 """
 
@@ -149,8 +149,8 @@ def cargar(ruta: Path, obligatorio: bool = True):
         if obligatorio:
             st.error(
                 f"No se encontró `{ruta.relative_to(CARPETA_PROYECTO)}`. "
-                "Ejecuta primero ft_engineering.py, model_training_evaluation.py "
-                "y model_monitoring.py."
+                "Ejecuta primero los módulos de preparación, entrenamiento y "
+                "monitoreo de mlops_pipeline."
             )
             st.stop()
         return None
@@ -550,7 +550,7 @@ with tab_tiempo:
     if historial.empty or historial["Fecha_monitoreo"].nunique() < 2:
         st.info(
             "Aún no hay suficiente historial para ver una evolución. "
-            "Cada ejecución de `model_monitoring.py` agrega un punto; "
+            "Cada ejecución de `mlops_pipeline.model_monitoring` agrega un punto; "
             "se necesitan al menos dos ejecuciones."
         )
         if not historial.empty:

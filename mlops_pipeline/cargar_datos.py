@@ -1,7 +1,7 @@
 from pathlib import Path
 import pandas as pd
 
-carpeta_proyecto = Path(__file__).resolve().parent
+carpeta_proyecto = Path(__file__).resolve().parent.parent
 archivo_csv = carpeta_proyecto / "Base_de_datos.csv"
 archivo_excel = carpeta_proyecto / "BD_creditos.xlsx"
 
@@ -13,7 +13,7 @@ elif archivo_excel.exists():
     print(f"Datos cargados desde: {archivo_excel}")
 else:
     raise FileNotFoundError(
-        "No se encontró Base_de_datos.csv ni BD_creditos.xlsx en la raíz del proyecto."
+        f"No se encontró Base_de_datos.csv ni BD_creditos.xlsx en: {carpeta_proyecto}"
     )
 
 print(f"\nDimensiones: {datos.shape[0]:,} filas y {datos.shape[1]} columnas")

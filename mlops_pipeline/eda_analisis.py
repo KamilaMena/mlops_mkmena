@@ -20,7 +20,8 @@ sns.set_theme(style='whitegrid')
 pd.set_option('display.max_columns', 50)
 pd.set_option('display.width', 200)
 
-CARPETA_GRAFICOS = Path.cwd() / 'outputs' / 'graficos_eda'
+CARPETA_PROYECTO = Path(__file__).resolve().parent.parent
+CARPETA_GRAFICOS = CARPETA_PROYECTO / 'outputs' / 'graficos_eda'
 CARPETA_GRAFICOS.mkdir(parents=True, exist_ok=True)
 
 
@@ -33,7 +34,7 @@ def guardar_grafica(nombre):
 # Se reutilizan los datos originales cargados por `cargar_datos.py`. Se trabaja sobre una copia para no modificar el DataFrame original.
 
 # %%
-from cargar_datos import datos as db
+from mlops_pipeline.cargar_datos import datos as db
 
 print('Filas y columnas:', db.shape)
 display(db.head())

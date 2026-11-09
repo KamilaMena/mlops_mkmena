@@ -26,12 +26,12 @@ from sklearn.metrics import (
 )
 from xgboost import XGBClassifier
 
-from model_preprocessing import build_preprocessing_pipeline
+from mlops_pipeline.model_preprocessing import build_preprocessing_pipeline
 
 
 # 2. Definir las rutas y configuraciones
 
-CARPETA_PROYECTO = Path(__file__).resolve().parent
+CARPETA_PROYECTO = Path(__file__).resolve().parent.parent
 
 CARPETA_DATASETS = CARPETA_PROYECTO / 'outputs' / 'datasets'
 CARPETA_MODELOS = CARPETA_PROYECTO / 'outputs' / 'models'
@@ -572,7 +572,7 @@ print('- outputs/reports/tiempos_entrenamiento.png')
 
 print('\nTodos los procesos finalizaron correctamente.')
 
-from model_preprocessing import CreditDataCleaner
+from mlops_pipeline.model_preprocessing import CreditDataCleaner
 
 limpiador = CreditDataCleaner()
 

@@ -3,17 +3,22 @@
 import numpy as np
 import pandas as pd
 import joblib
+import sys
 
 from pathlib import Path
 from datetime import datetime
 
 from scipy.stats import ks_2samp, chi2_contingency
 from scipy.spatial.distance import jensenshannon
+from mlops_pipeline import model_preprocessing
+
+# Supports loading models serialized before model_preprocessing moved into the package.
+sys.modules.setdefault('model_preprocessing', model_preprocessing)
 
 
 # 2. Definir las rutas
 
-CARPETA_PROYECTO = Path(__file__).resolve().parent
+CARPETA_PROYECTO = Path(__file__).resolve().parent.parent
 
 CARPETA_DATASETS = CARPETA_PROYECTO / 'outputs' / 'datasets'
 CARPETA_MODELOS = CARPETA_PROYECTO / 'outputs' / 'models'

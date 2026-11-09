@@ -5,11 +5,11 @@ import pandas as pd
 from pathlib import Path
 
 from sklearn.model_selection import train_test_split
-from cargar_datos import datos as db
+from mlops_pipeline.cargar_datos import datos as db
 
 # 2. Definir las rutas y configuraciones del proyecto
 
-CARPETA_PROYECTO = Path(__file__).resolve().parent
+CARPETA_PROYECTO = Path(__file__).resolve().parent.parent
 CARPETA_OUTPUTS = CARPETA_PROYECTO / 'outputs' / 'datasets'
 
 VARIABLE_OBJETIVO = 'Pago_atiempo'

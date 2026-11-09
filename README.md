@@ -35,7 +35,7 @@ El EDA informa 10.613 registros en el conjunto analizado después de sus reglas
 de preparación. En la fuente original, `Pago_atiempo=0` representa alrededor
 del 4,75 % de los registros, por lo que las clases están desbalanceadas. Las
 reglas de preparación y exclusión de variables están descritas en
-`ft_engineering.py` y `eda_analisis.py`.
+`mlops_pipeline/ft_engineering.py` y `mlops_pipeline/eda_analisis.py`.
 
 ## Hallazgos principales del EDA
 
@@ -56,30 +56,31 @@ reglas de preparación y exclusión de variables están descritas en
   relación causal.
 
 Las tablas del EDA se muestran al ejecutar sus celdas y las gráficas se guardan
-en `outputs/graficos_eda/`.
+en `outputs/graficos_eda/`, relativo a la raíz del repositorio.
 
 ## Flujo del proyecto
 
-Ejecuta los archivos desde la raíz del repositorio y en este orden:
+Ejecuta los comandos desde la raíz del repositorio y en este orden:
 
-1. `eda_analisis.py`: realiza el análisis exploratorio. En VS Code, abre el
-   archivo y usa **Run All Cells** para ejecutar las celdas `# %%` y ver las
-   gráficas. También se puede ejecutar como script desde la terminal, aunque
-   en ese modo las gráficas no se muestran interactivamente.
-2. `ft_engineering.py`: divide los datos originales de forma estratificada y
+1. `python -m mlops_pipeline.eda_analisis`: realiza el análisis exploratorio.
+   En VS Code también puedes abrir `mlops_pipeline/eda_analisis.py` y usar
+   **Run All Cells** para ejecutar las celdas `# %%`.
+2. `python -m mlops_pipeline.ft_engineering`: divide los datos originales de forma estratificada y
    guarda las particiones crudas en `outputs/datasets/*_raw.csv`.
-3. `model_training_evaluation.py`: compara Regresión Logística, Árbol de
+3. `python -m mlops_pipeline.model_training_evaluation`: compara Regresión Logística, Árbol de
    Decisión, Random Forest y XGBoost mediante validación cruzada estratificada.
    En cada pliegue ajusta la limpieza, imputación, transformaciones, escalado y
    codificación solo con los datos de entrenamiento del pliegue. Guarda el
    modelo completo y los datasets transformados para el monitoreo y el panel.
-4. `model_monitoring.py`: genera predicciones para el conjunto de prueba y
+4. `python -m mlops_pipeline.model_monitoring`: genera predicciones para el conjunto de prueba y
    calcula métricas de drift frente al conjunto de entrenamiento.
-5. `app.py`: presenta reportes y evolución del drift en una aplicación
-   Streamlit.
+5. `streamlit run app.py`: presenta reportes y evolución del drift en una
+   aplicación Streamlit.
 
-`cargar_datos.py` no se ejecuta por separado: los archivos que necesitan los
-datos lo importan y cargan el CSV o Excel disponible en la raíz del proyecto.
+`mlops_pipeline/cargar_datos.py` no se ejecuta por separado: los scripts que
+necesitan los datos lo importan y cargan el CSV o Excel disponible en la raíz
+del repositorio. Los datos y resultados permanecen en la raíz (`BD_creditos.xlsx`
+y `outputs/`); los módulos Python del flujo están en `mlops_pipeline/`.
 El artefacto `outputs/models/mejor_modelo.joblib` contiene limpieza,
 transformaciones y clasificador. Para puntuar datos nuevos, pásale un
 `DataFrame` con las variables predictoras requeridas (sin `Pago_atiempo`) a
@@ -130,6 +131,20 @@ Los scripts crean sus resultados dentro de `outputs/`:
 `outputs/` está excluida del control de versiones por `.gitignore`. Ejecuta el
 flujo para regenerar estos archivos antes de iniciar la aplicación.
 
+## API con Docker
+
+La API FastAPI está en `mlops_pipeline/model_deploy.py`. Después de generar el
+modelo con el flujo anterior y tener Docker instalado, construye y ejecuta la
+imagen desde la raíz del repositorio:
+
+```powershell
+docker build -t riesgo-api .
+docker run --rm -p 8000:8000 riesgo-api
+```
+
+La API queda disponible en `http://localhost:8000` y su documentación
+interactiva en `http://localhost:8000/docs`.
+
 ## Evaluación y monitoreo actuales
 
 En la última ejecución documentada del flujo, la Regresión Logística obtuvo
@@ -150,17 +165,28 @@ registrada entre ejecuciones.
 
 ```text
 .
+├── .gitignore
+├── .dockerignore
+├── Dockerfile
 ├── BD_creditos.xlsx
-├── cargar_datos.py
-├── eda_analisis.py
-├── ft_engineering.py
-├── model_training_evaluation.py
-├── model_monitoring.py
 ├── app.py
-├── deploy.py
 ├── config.json
 ├── requirements.txt
+├── requirements-api.txt
 ├── set_up.bat
 ├── README.md
+├── mlops_pipeline/
+│   ├── cargar_datos.py
+│   ├── eda_analisis.py
+│   ├── ft_engineering.py
+│   ├── model_deploy.py
+│   ├── model_monitoring.py
+│   ├── model_preprocessing.py
+│   └── model_training_evaluation.py
 └── outputs/
+    ├── datasets/
+    ├── graficos_eda/
+    ├── models/
+    ├── reports/
+    └── Contexto/
 ```

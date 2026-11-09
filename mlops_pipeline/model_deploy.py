@@ -1,15 +1,19 @@
-
 from pathlib import Path
 from io import StringIO
+import sys
 
 import joblib
 import pandas as pd
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Body
 from fastapi.responses import StreamingResponse
+from mlops_pipeline import model_preprocessing
+
+# Supports loading models serialized before model_preprocessing moved into the package.
+sys.modules.setdefault("model_preprocessing", model_preprocessing)
 
 # 1. Carga del modelo entrenado
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = Path(__file__).resolve().parent.parent
 MODEL_PATH = BASE_DIR / "outputs" / "models" / "mejor_modelo.joblib"
 
 if not MODEL_PATH.exists():
