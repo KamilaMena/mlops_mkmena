@@ -1,4 +1,3 @@
-
 name: Build and SonarCloud Analysis
 
 on:
@@ -36,7 +35,7 @@ jobs:
 
       - name: Run tests and generate coverage
         run: |
-          pytest --cov=mlops_pipeline.model_preprocessing --cov-report=xml:coverage.xml
+          python -m pytest --cov=mlops_pipeline.model_preprocessing --cov-report=xml:coverage.xml
 
       - name: SonarCloud Scan
         uses: SonarSource/sonarqube-scan-action@4d1dc0c91ee400dcf8a6dddf2f705ac36542e304
