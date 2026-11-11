@@ -1,3 +1,4 @@
+# model_training_evaluation.py
 # 1. Importar las librerías
 
 import numpy as np
@@ -25,9 +26,7 @@ from sklearn.metrics import (
     ConfusionMatrixDisplay
 )
 from xgboost import XGBClassifier
-
-from mlops_pipeline.model_preprocessing import build_preprocessing_pipeline
-
+from mlops_pipeline.ft_engineering import build_preprocessing_pipeline
 
 # 2. Definir las rutas y configuraciones
 
@@ -278,16 +277,23 @@ for nombre in nombres_modelos:
 
 tabla_resultados = pd.DataFrame(resultados)
 
-# Ordenar según Recall, F1-Score, estabilidad y tiempo de entrenamiento
+# Ordenar según F1, PR-AUC, Recall, estabilidad y tiempo
+# Se prioriza el F1-Score como criterio principal de selección,
+# ya que permite equilibrar la precisión y el recall, evitando
+# favorecer modelos que identifiquen muchos incumplimientos
+# a costa de generar demasiadas falsas alarmas, o viceversa.
+# Como criterios secundarios se consideran PR-AUC, Recall,
+# estabilidad y tiempo de entrenamiento.
 
 tabla_resultados = tabla_resultados.sort_values(
     by=[
-        'Recall_CV',
         'F1_CV',
-        'Recall_Desv',
+        'PR_AUC_CV',
+        'Recall_CV',
+        'F1_Desv',
         'Tiempo_entrenamiento'
     ],
-    ascending=[False, False, True, True]
+    ascending=[False, False, False, True, True]
 ).reset_index(drop=True)
 
 print('\nTABLA COMPARATIVA DE MODELOS')
@@ -387,31 +393,67 @@ pd.DataFrame([metricas_finales]).to_csv(
 
 mejor = tabla_resultados.loc[0]
 segundo = tabla_resultados.loc[1]
-mas_estable = tabla_resultados.loc[tabla_resultados['Recall_Desv'].idxmin()]
-mas_rapido = tabla_resultados.loc[tabla_resultados['Tiempo_entrenamiento'].idxmin()]
-mas_lento = tabla_resultados.loc[tabla_resultados['Tiempo_entrenamiento'].idxmax()]
+
+mas_estable = tabla_resultados.loc[
+    tabla_resultados['F1_Desv'].idxmin()
+]
+
+mas_rapido = tabla_resultados.loc[
+    tabla_resultados['Tiempo_entrenamiento'].idxmin()
+]
+
+mas_lento = tabla_resultados.loc[
+    tabla_resultados['Tiempo_entrenamiento'].idxmax()
+]
 
 justificacion = f"""JUSTIFICACIÓN DEL MODELO SELECCIONADO: {mejor_nombre}
 
-1. Desempeño: tiene el mayor recall en validación cruzada ({mejor['Recall_CV']:.3f}; el segundo,
-   {segundo['Modelo']}, obtiene {segundo['Recall_CV']:.3f}), con F1 {mejor['F1_CV']:.3f} y PR-AUC
-   {mejor['PR_AUC_CV']:.3f}. Se prioriza el recall porque en riesgo crediticio no detectar un
-   incumplimiento cuesta más que revisar una solicitud buena, y la clase de incumplimiento es minoritaria (4,75 %).
-2. Consistencia: la desviación del recall entre los {NUM_PARTICIONES} pliegues es {mejor['Recall_Desv']:.3f}
-   (el modelo más estable es {mas_estable['Modelo']}, con {mas_estable['Recall_Desv']:.3f}).
-3. Escalabilidad: entrena en {mejor['Tiempo_entrenamiento']:.2f} s y predice en
-   {mejor['Tiempo_prediccion']:.2f} s por pliegue (el más rápido en entrenar es {mas_rapido['Modelo']},
-   el más lento {mas_lento['Modelo']}).
-4. Evaluación final en el conjunto de prueba: recall {metricas_finales['Recall']:.3f},
-   precisión {metricas_finales['Precision']:.3f}, F1 {metricas_finales['F1-Score']:.3f},
-   PR-AUC {metricas_finales['PR-AUC']:.3f}.
-   Limitación: la precisión es baja, así que habrá muchas falsas alarmas; el umbral de decisión
-   debe ajustarse con el negocio según el costo de cada tipo de error.
+1. Desempeño:
+   Se seleccionó {mejor_nombre} por obtener el mayor F1-Score
+   promedio en validación cruzada ({mejor['F1_CV']:.3f}).
+   El segundo modelo fue {segundo['Modelo']}, con un F1-Score de
+   {segundo['F1_CV']:.3f}.
+
+   También obtuvo un PR-AUC de {mejor['PR_AUC_CV']:.3f}
+   y un Recall de {mejor['Recall_CV']:.3f}.
+
+   Se prioriza el F1-Score porque permite equilibrar la precisión
+   y el recall, buscando identificar incumplimientos sin generar
+   demasiadas falsas alarmas.
+
+2. Consistencia:
+   La desviación estándar del F1-Score entre los {NUM_PARTICIONES}
+   pliegues fue {mejor['F1_Desv']:.3f}.
+   El modelo más estable fue {mas_estable['Modelo']}, con una
+   desviación de {mas_estable['F1_Desv']:.3f}.
+
+3. Eficiencia:
+   El tiempo promedio de entrenamiento fue
+   {mejor['Tiempo_entrenamiento']:.2f} segundos y el de evaluación
+   {mejor['Tiempo_prediccion']:.2f} segundos por pliegue.
+
+   El modelo más rápido en entrenamiento fue {mas_rapido['Modelo']}
+   y el más lento fue {mas_lento['Modelo']}.
+
+4. Evaluación final:
+   En el conjunto de prueba, el modelo obtuvo:
+   - Recall: {metricas_finales['Recall']:.3f}
+   - Precision: {metricas_finales['Precision']:.3f}
+   - F1-Score: {metricas_finales['F1-Score']:.3f}
+   - ROC-AUC: {metricas_finales['ROC-AUC']:.3f}
+   - PR-AUC: {metricas_finales['PR-AUC']:.3f}
+
+   Estas métricas permiten evaluar la capacidad del modelo para
+   identificar incumplimientos y el equilibrio de sus predicciones.
+
 """
 
 print(justificacion)
-(CARPETA_REPORTES / 'justificacion_modelo.txt').write_text(justificacion, encoding='utf-8')
 
+(CARPETA_REPORTES / 'justificacion_modelo.txt').write_text(
+    justificacion,
+    encoding='utf-8'
+)
 
 # 13. Generar gráfico comparativo de rendimiento
 
@@ -451,13 +493,13 @@ plt.figure(figsize=(9, 5))
 
 plt.bar(
     tabla_resultados['Modelo'],
-    tabla_resultados['Recall_CV'],
-    yerr=tabla_resultados['Recall_Desv'],
+    tabla_resultados['F1_CV'],
+    yerr=tabla_resultados['F1_Desv'],
     capsize=5
 )
 
-plt.title('Consistencia del Recall en validación cruzada')
-plt.ylabel('Recall promedio')
+plt.title('Consistencia del F1-Score en validación cruzada')
+plt.ylabel('F1-Score promedio')
 plt.xlabel('Modelo')
 plt.ylim(0, 1)
 plt.xticks(rotation=15)
@@ -571,32 +613,3 @@ print('- outputs/reports/curva_roc.png')
 print('- outputs/reports/tiempos_entrenamiento.png')
 
 print('\nTodos los procesos finalizaron correctamente.')
-
-from mlops_pipeline.model_preprocessing import CreditDataCleaner
-
-limpiador = CreditDataCleaner()
-
-X_train_limpio = limpiador.fit_transform(X_train)
-
-print('\nCOMPROBACIÓN DEL PREPROCESAMIENTO')
-
-print('Dimensiones originales:', X_train.shape)
-print('Dimensiones después de limpiar:', X_train_limpio.shape)
-
-print('\nValores de tipo_credito:')
-print(X_train_limpio['tipo_credito'].value_counts(dropna=False))
-
-print('\nValores mínimos de variables monetarias:')
-
-for columna in [
-    'capital_prestado',
-    'salario_cliente',
-    'total_otros_prestamos',
-    'saldo_mora',
-    'saldo_total',
-    'saldo_mora_codeudor',
-    'promedio_ingresos_datacredito'
-]:
-    print(columna, ':', X_train_limpio[columna].min())
-
-    

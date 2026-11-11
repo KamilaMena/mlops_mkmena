@@ -6,3 +6,4 @@ joblib==1.6.0
 fastapi==0.162.2
 uvicorn[standard]==0.54.0
 python-multipart==0.0.33
+xgboost==3.4.1

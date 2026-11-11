@@ -1,8 +1,5 @@
-"""Ingeniería de características del proyecto de riesgo crediticio.
-
-Este módulo es la primera pieza del flujo de modelado. Se puede importar sin
-efectos secundarios (no lee datos ni escribe archivos al importarse), de modo
-que lo usan tanto el entrenamiento como la API y el monitoreo.
+"""ft_engineering.py
+Funciones de limpieza y transformación de datos para modelado.
 
 Flujo de transformación
 -----------------------
