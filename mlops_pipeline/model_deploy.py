@@ -182,6 +182,13 @@ def predecir_json(payload: object = Body(...)):
 
         resultados = realizar_predicciones(datos)
 
+        # Convertir los valores NaN a None para que FastAPI
+        # pueda serializarlos correctamente como null en JSON.
+        resultados = resultados.astype(object).where(
+            resultados.notna(),
+            None
+        )
+
         return {
             "total_registros": len(resultados),
             "predicciones": resultados.to_dict(orient="records")
