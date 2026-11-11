@@ -38,6 +38,7 @@ jobs:
           python -m pytest \
             --cov=mlops_pipeline.model_deploy \
             --cov=mlops_pipeline.model_preprocessing \
+            --cov=mlops_pipeline.ft_engineering \
             --cov-report=term-missing \
             --cov-report=xml:coverage.xml
 
