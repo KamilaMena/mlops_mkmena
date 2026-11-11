@@ -1,0 +1,5 @@
+outputs/reports
+outputs/graficos_eda
+outputs/Contexto
+.venv/
+__pycache__/

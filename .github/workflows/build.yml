@@ -1,0 +1,47 @@
+name: Build and SonarCloud Analysis
+
+on:
+  push:
+    branches:
+      - main
+      - developer
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  sonarqube:
+    name: Tests and SonarCloud
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
+
+      - name: Run tests and generate coverage
+        run: |
+          python -m pytest --cov=mlops_pipeline.model_preprocessing --cov-report=xml:coverage.xml
+
+      - name: Verify coverage report
+        run: |
+          python -c "import xml.etree.ElementTree as ET; r=ET.parse('coverage.xml').getroot(); print('Sources:', [s.text for s in r.findall('./sources/source')]); print('Lines valid:', r.attrib['lines-valid']); print('Lines covered:', r.attrib['lines-covered'])"
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarqube-scan-action@4d1dc0c91ee400dcf8a6dddf2f705ac36542e304
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
