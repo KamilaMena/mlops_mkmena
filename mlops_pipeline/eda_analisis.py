@@ -15,6 +15,7 @@ import seaborn as sns
 from pathlib import Path
 from sklearn.metrics import roc_auc_score
 from IPython.display import display
+from mlops_pipeline.ft_engineering import RAZONES_EXCLUSION, UMBRAL_CORRELACION
 
 sns.set_theme(style='whitegrid')
 pd.set_option('display.max_columns', 50)
@@ -477,12 +478,16 @@ print(correlacion['Pago_atiempo'].drop('Pago_atiempo').sort_values(key=abs, asce
 
 pares = correlacion.drop(columns='Pago_atiempo').drop(index='Pago_atiempo').abs()
 pares = pares.where(np.triu(np.ones(pares.shape, dtype=bool), 1)).stack().sort_values(ascending=False)
-print('\nPares de variables más correlacionados:')
-print(pares.head(5).round(2))
+altas = pares[pares >= UMBRAL_CORRELACION]
+print(f'Pares con correlación >= {UMBRAL_CORRELACION}:')
+print(altas.round(2))
+print('\nVariables que se excluyen del modelo por redundancia:')
+for col in ['cuota_pactada', 'saldo_principal', 'creditos_sectorFinanciero']:
+    print('-', col, ':', RAZONES_EXCLUSION[col])
 
 # %% [markdown]
 # - **Con el objetivo:** ninguna variable pasa de 0,12 de correlación (la mayor es `puntaje_datacredito`, 0,12). Es un problema difícil y se espera un desempeño modesto del modelo.
-# - **Entre variables:** los pares más altos son `cant_creditosvigentes` con `creditos_sectorFinanciero` (0,79), `capital_prestado` con `cuota_pactada` (0,76, normal: la cuota depende del capital) y `saldo_total` con `saldo_principal` (0,73). No son idénticas, así que no se elimina ninguna por ahora (el umbral de alerta que usamos es 0,90).
+# - **Entre variables:** tres pares superan el umbral de 0,70: cant_creditosvigentes con creditos_sectorFinanciero (0,79), capital_prestado con cuota_pactada (0,76) y saldo_total con saldo_principal (0,73). En cada par se excluye una variable al construir el modelo (creditos_sectorFinanciero, cuota_pactada y saldo_principal), conservando la más general. Ver ft_engineering.py.
 
 # %% [markdown]
 # #### **6.2 Relación entre algunas variables y el objetivo**
@@ -558,8 +563,9 @@ display(pd.DataFrame({'registros que incumplen': {r: int((~ok).sum()) for r, ok 
 # | Imputar con la mediana en las numéricas | Los faltantes son frecuentes y no se pueden borrar filas |
 # | Categoría "Faltante" en las categóricas | La ausencia de `tendencia_ingresos` es informativa |
 # | One-Hot en `tipo_credito`, `tipo_laboral` y `tendencia_ingresos` (agrupando los tipos raros) | Pasar categorías a 0/1 |
-#
+# | Excluir variables redundantes (correlación ≥ 0,70) | Evitar duplicar información y reducir multicolinealidad |
 # Variables derivadas que se proponen. Probamos que tan útiles pueden ser comparando su tasa de pago:
+# Estas variables derivadas no se incorporaron a la versión actual del modelo
 
 # %%
 derivadas = pd.DataFrame(index=datos.index)
@@ -595,5 +601,6 @@ print(derivadas.groupby('falta_ingresos')['Pago_atiempo'].agg(['count', 'mean'])
 # 5. Las señales para predecir son **débiles pero coherentes**: más consultas, mora, plazos largos y puntaje de Datacrédito bajo se asocian con incumplir. Se espera un modelo de desempeño modesto.
 # 6. Los montos son muy asimétricos (se usa logaritmo) y los "atípicos" de mora **no se eliminan** porque son la señal más informativa.
 # 7. Hay **cambio en el tiempo** (cae el volumen de créditos), por lo que se hace monitoreo de *data drift*.
+# 8. Se excluyen del modelo tres variables redundantes (correlación ≥ 0,70) además de puntaje y fecha_prestamo.
 #
 # **Pendientes por confirmar:** cuándo se calcula `puntaje`, los límites de edad y salario (incluyendo los 7 salarios menores a 100.000), y si la mejora de la tasa de pago en los meses recientes se debe a que esos créditos han tenido poco tiempo para incumplir.

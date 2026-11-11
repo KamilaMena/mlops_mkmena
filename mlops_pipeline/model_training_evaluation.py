@@ -406,7 +406,7 @@ justificacion = f"""JUSTIFICACIÓN DEL MODELO SELECCIONADO: {mejor_nombre}
    precisión {metricas_finales['Precision']:.3f}, F1 {metricas_finales['F1-Score']:.3f},
    PR-AUC {metricas_finales['PR-AUC']:.3f}.
    Limitación: la precisión es baja, así que habrá muchas falsas alarmas; el umbral de decisión
-   debe ajustarse con el negocio (el simulador de umbral de la app Streamlit sirve para eso).
+   debe ajustarse con el negocio según el costo de cada tipo de error.
 """
 
 print(justificacion)
