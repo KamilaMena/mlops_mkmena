@@ -23,300 +23,134 @@ La variable objetivo es `Pago_atiempo`:
 
 Para el entrenamiento y el monitoreo se transforma esta etiqueta, de modo que `1` represente incumplimiento. Esta convención permite interpretar el *recall* como la proporción de incumplimientos reales que logra detectar el modelo.
 
-> **Alcance:** se trata de un prototipo académico. Sus resultados no deben utilizarse directamente para tomar decisiones crediticias reales sin validación del negocio, evaluación de posibles sesgos y cumplimiento de los controles regulatorios correspondientes.
+> **Alcance:** prototipo académico. Los resultados no deben usarse para decisiones crediticias reales sin validación del negocio, análisis de sesgos y controles regulatorios.
 
-## 2. Datos y exploración
+## Datos y análisis exploratorio
 
-La fuente de información utilizada es `BD_creditos.xlsx`, con **10.763 registros y 23 columnas**. El cargador también contempla la posibilidad de utilizar `Base_de_datos.csv`, si se encuentra disponible.
+La fuente de información utilizada es `BD_creditos.xlsx`, con **10.763 registros y 23 columnas** (créditos otorgados entre noviembre de 2024 y abril de 2026). El cargador también contempla la posibilidad de utilizar `Base_de_datos.csv`, si se encuentra disponible.
 
-Después de aplicar las reglas de preparación del análisis exploratorio, se reportan 10.613 registros. En la fuente original, los casos con `Pago_atiempo = 0` representan aproximadamente el 4,75 % de los registros, lo que evidencia un desbalance entre las clases.
+**Ninguna fila se elimina**: los valores imposibles se convierten en nulos y se imputan después, dentro del pipeline, usando solo datos de entrenamiento. En la fuente original, los casos con `Pago_atiempo = 0` representan aproximadamente el 4,75 % de los registros (511), lo que evidencia un fuerte desbalance entre las clases.
 
 ### Principales hallazgos
 
 El análisis exploratorio permitió identificar aspectos relevantes para la preparación y el modelado:
 
-- **Valores faltantes:** se concentran principalmente en `tendencia_ingresos` y `promedio_ingresos_datacredito`, con alrededor del 26 % de datos faltantes en el conjunto analizado. También se identificaron faltantes en algunas variables de saldos.
-- **Distribuciones:** algunas variables monetarias presentan asimetría y valores extremos. No se establecen límites arbitrarios sin confirmar previamente las unidades y reglas de negocio.
-- **Consistencia categórica:** se encontraron 58 valores de `tendencia_ingresos` que no corresponden a las categorías esperadas (`Decreciente`, `Estable` y `Creciente`). Estos valores se tratan como faltantes durante la preparación para el modelado.
-- **Posible fuga de información:** la variable `puntaje` presenta una correlación de Pearson alta con el objetivo (`r = 0,926`). Aunque esto no demuestra causalidad, su definición y disponibilidad temporal deben revisarse. Por precaución, se excluye del conjunto utilizado para entrenar los modelos.
+- **Valores faltantes:** se concentran en `tendencia_ingresos` y `promedio_ingresos_datacredito` (~27 %), y faltan con más frecuencia en clientes independientes. También hay faltantes en algunas variables de saldos (1 % a 5 %).
+- **Valores imposibles:** 150 edades de 121 a 123 años, 98 salarios en 0 o superiores a 100 millones, 147 puntajes de Datacrédito menores a 150 (códigos de "sin puntaje") y 58 valores numéricos dentro de `tendencia_ingresos`, que debería tener solo las categorías `Decreciente`, `Estable` y `Creciente`.
+- **Límites de validación:** los rangos usados (edad entre 18 y 100 años, salario entre 1 y 100 millones, puntaje mínimo de 150) son **supuestos razonables** basados en los datos, pendientes de confirmar con el negocio.
+- **Distribuciones:** los montos presentan fuerte asimetría positiva y valores extremos reales, por lo que se transforman con logaritmo en lugar de eliminarse. `saldo_mora` y `saldo_mora_codeudor` son casi todo ceros, y los pocos valores positivos corresponden a clientes en mora, la señal más informativa.
+- **Señales débiles pero coherentes:** más consultas, mora, plazos largos y puntaje de Datacrédito bajo se asocian con incumplir. Ninguna variable supera 0,12 de correlación con el objetivo, por lo que se espera un desempeño modesto.
+- **Variables correlacionadas:** tres pares de variables superan una correlación de 0,70 y se resuelven excluyendo una de cada par (ver sección 3.1).
+- **Posible fuga de información:** la variable `puntaje` presenta una correlación de Pearson alta con el objetivo (`r = 0,926`) y por sí sola separa perfectamente las clases (AUC = 1,0). Aunque esto no demuestra causalidad, su definición y disponibilidad temporal deben revisarse. Por precaución, se excluye del conjunto utilizado para entrenar los modelos.
+- **Cambio en el tiempo:** el volumen de créditos cae de forma marcada entre 2025 y 2026, lo que justifica el monitoreo de *data drift*.
 
 Las diferencias observadas entre grupos se interpretan de manera descriptiva y no como evidencia de relaciones causales.
 
 Los análisis y las gráficas se generan desde `mlops_pipeline/eda_analisis.py`. Los resultados gráficos se almacenan en `outputs/graficos_eda/`.
 
-## 3. Flujo de Machine Learning
+## Flujo del proyecto
 
-El proyecto está organizado en módulos independientes que permiten ejecutar cada etapa del proceso desde la raíz del repositorio.
-
-| Etapa | Módulo | Responsabilidad |
+| Etapa | Módulo | Descripción |
 |---|---|---|
-| Exploración | `eda_analisis.py` | Caracterización, análisis estadístico y visualización de los datos. |
-| Ingeniería de características | `ft_engineering.py` | Preparación de variables y división estratificada de los datos. |
-| Preprocesamiento | `model_preprocessing.py` | Limpieza, validación y transformación de variables. |
-| Entrenamiento y evaluación | `model_training_evaluation.py` | Comparación, selección y evaluación de modelos. |
-| Monitoreo | `model_monitoring.py` | Predicciones y cálculo de métricas de data drift. |
-| Despliegue | `model_deploy.py` | Disponibilidad del modelo mediante una API. |
+| Exploración | `mlops_pipeline/eda_analisis.py` | Caracterización y visualizaciones del dataset. |
+| Ingeniería de características | `mlops_pipeline/ft_engineering.py` | Limpieza, selección y transformación de variables; genera particiones y datasets. |
+| Entrenamiento | `mlops_pipeline/model_training_evaluation.py` | Compara Regresión Logística, Árbol de Decisión, Random Forest y XGBoost; evalúa y guarda el modelo seleccionado. |
+| Monitoreo | `mlops_pipeline/model_monitoring.py` | Genera predicciones y reportes de data drift. |
+| Dashboard | `app.py` | Presenta los resultados de monitoreo en Streamlit. |
+| API | `mlops_pipeline/model_deploy.py` | Expone el modelo mediante FastAPI. |
 
-### 3.1. Limpieza y preprocesamiento de datos
+El preprocesamiento se integra con el modelo para aplicar las mismas reglas en entrenamiento y predicción. Se realiza una partición estratificada aleatoria de 75 % para entrenamiento y 25 % para evaluación; la validación cruzada también es estratificada.
 
-El módulo `mlops_pipeline/model_preprocessing.py` centraliza las reglas de validación, limpieza y transformación de las variables utilizadas por los modelos. Su implementación se basa en componentes de `scikit-learn`, lo que permite integrar todo el proceso en un pipeline reproducible.
+### Ejecutar el flujo
 
-La preparación se divide en dos componentes principales:
-
-**Limpieza de datos (`CreditDataCleaner`)**
-
-Implementa reglas para corregir inconsistencias y valores inválidos antes del entrenamiento:
-
-- Agrupa algunas categorías poco frecuentes de `tipo_credito` bajo la categoría `otros`.
-- Identifica edades fuera del rango permitido (18 a 100 años).
-- Trata como faltantes los salarios menores o iguales a cero y superiores a 100 millones.
-- Identifica puntajes de Datacrédito inferiores a 150.
-- Convierte en valores faltantes las categorías de `tendencia_ingresos` que no pertenecen a las opciones esperadas.
-- Excluye las variables definidas como no utilizadas en el modelado.
-- Valida que los datos de entrada sean un `DataFrame` y contengan las columnas requeridas.
-
-**Transformación de variables (`build_preprocessor`)**
-
-Utiliza un `ColumnTransformer` para aplicar tratamientos diferenciados según el tipo de variable:
-
-| Tipo de variable | Tratamiento |
-|---|---|
-| Monetarias | Transformación logarítmica `log1p`, imputación por mediana y estandarización. |
-| Numéricas restantes | Imputación por mediana y estandarización. |
-| Categóricas | Imputación con la categoría `Faltante` y codificación One-Hot. |
-
-La codificación utiliza `handle_unknown='ignore'`, lo que permite procesar categorías no observadas durante el entrenamiento sin generar errores.
-
-Finalmente, `build_preprocessing_pipeline()` integra la limpieza y la transformación en un único pipeline. De esta manera, las mismas reglas se aplican durante el entrenamiento, la evaluación y las predicciones sobre nuevos registros.
-
-### 3.2. Preparación y entrenamiento
-
-Se comparan cuatro algoritmos de clasificación:
-
-- Regresión Logística.
-- Árbol de Decisión.
-- Random Forest.
-- XGBoost.
-
-La comparación se realiza mediante validación cruzada estratificada. En cada partición, los procesos de limpieza, imputación, transformación, escalado y codificación se ajustan únicamente con los datos de entrenamiento correspondientes, evitando utilizar información de los datos de validación durante el ajuste.
-
-Como resultado se guarda el modelo seleccionado, que incluye el preprocesamiento necesario para recibir datos sin transformar.
-
-### 3.3. Ejecución del flujo
-
-Desde la raíz del proyecto, con el entorno virtual activado, ejecuta los módulos en el siguiente orden:
-
-```bash
-# 1. Análisis exploratorio
-python -m mlops_pipeline.eda_analisis
-
-# 2. Ingeniería de características
-python -m mlops_pipeline.ft_engineering
-
-# 3. Entrenamiento y evaluación
-python -m mlops_pipeline.model_training_evaluation
-
-# 4. Monitoreo y detección de drift
-python -m mlops_pipeline.model_monitoring
-
-# 5. Aplicación de monitoreo
-streamlit run app.py
-```
-
-El análisis exploratorio también puede ejecutarse desde VS Code abriendo `mlops_pipeline/eda_analisis.py` y utilizando **Run All Cells** sobre las celdas `# %%`.
-
-El módulo `cargar_datos.py` se importa desde los demás componentes y no requiere ejecución independiente.
-
-### 3.4. Uso del modelo entrenado
-
-El artefacto principal se encuentra en:
-
-`outputs/models/mejor_modelo.joblib`
-
-Este archivo contiene el proceso completo de limpieza, transformación y clasificación. Para realizar predicciones sobre nuevos registros, se debe proporcionar un `DataFrame` con las variables predictoras requeridas, sin incluir `Pago_atiempo`.
-
-El modelo permite utilizar `predict()` y `predict_proba()`. No es necesario aplicar el preprocesamiento por separado.
-
-## 4. Monitoreo y detección de data drift
-
-El módulo `model_monitoring.py` compara las distribuciones del conjunto de entrenamiento y del conjunto de prueba para identificar posibles cambios en las características de los datos.
-
-Se implementan las siguientes métricas:
-
-| Métrica | Propósito |
-|---|---|
-| Kolmogorov-Smirnov (KS) | Identificar diferencias entre distribuciones numéricas. |
-| Population Stability Index (PSI) | Cuantificar cambios en la distribución de las variables. |
-| Jensen-Shannon | Medir la divergencia entre distribuciones. |
-| Chi-cuadrado | Evaluar diferencias en variables categóricas. |
-
-Los resultados se almacenan en reportes CSV y se utilizan como fuente para la aplicación de monitoreo.
-
-### Dashboard interactivo
-
-La aplicación desarrollada con **Streamlit** permite consultar los resultados del monitoreo mediante diferentes vistas:
-
-- **Resumen general:** indicadores del estado del monitoreo y principales alertas.
-- **Distribuciones:** comparación visual entre los datos de referencia y los datos evaluados.
-- **Métricas de drift:** consulta de indicadores estadísticos por variable.
-- **Evolución temporal:** seguimiento de los resultados registrados en distintas ejecuciones.
-- **Desempeño del modelo:** visualización de métricas de clasificación y resultados de evaluación.
-- **Recomendaciones:** mensajes y sugerencias según los niveles de drift identificados.
-
-El panel incluye indicadores visuales de alerta, filtros y opciones para consultar y descargar reportes.
-
-**Alcance actual del monitoreo:** la comparación utiliza un conjunto de prueba fijo como muestra actual. No se reciben todavía datos nuevos desde producción ni se programan ejecuciones periódicas. Por tanto, los resultados permiten demostrar el funcionamiento de las métricas y del dashboard, pero no constituyen evidencia de estabilidad del modelo en un entorno productivo.
-
-## 5. Resultados de evaluación
-
-En la última ejecución documentada, el modelo de Regresión Logística obtuvo los siguientes resultados sobre el conjunto de evaluación:
-
-| Métrica | Resultado |
-|---|---:|
-| Recall | 0,625 |
-| Precisión | 0,085 |
-| F1-score | 0,149 |
-| PR-AUC | 0,179 |
-
-El modelo logra identificar una parte de los incumplimientos reales, pero su precisión es baja. Esto significa que una proporción importante de las alertas de posible incumplimiento corresponde a falsos positivos.
-
-Por ello, la selección de un modelo no debe basarse únicamente en el recall: también es necesario considerar el umbral de clasificación y los costos asociados a los distintos tipos de error.
-
-Los resultados se actualizan al volver a ejecutar el entrenamiento y la evaluación.
-
-## 6. Despliegue mediante API y Docker
-
-El modelo seleccionado se disponibiliza mediante una API desarrollada con **FastAPI**, ubicada en `mlops_pipeline/model_deploy.py`.
-
-La API permite recibir información y generar predicciones, incluyendo procesamiento por lotes. También dispone de una documentación interactiva para consultar y probar sus endpoints.
-
-### Construcción y ejecución
-
-Después de generar el modelo y contar con Docker instalado, construye la imagen desde la raíz del repositorio:
-
-```powershell
-docker build -t api-riesgo-crediticio:v2 .
-```
-
-Ejecuta el contenedor:
-
-```powershell
-docker run --rm -p 8000:8000 api-riesgo-crediticio:v2
-```
-
-Una vez iniciado, los servicios quedan disponibles en:
-
-| Recurso | Dirección |
-|---|---|
-| API | http://localhost:8000 |
-| Documentación interactiva | http://localhost:8000/docs |
-| Estado del servicio | http://localhost:8000/health |
-
-La imagen incluye el código necesario para ejecutar el servicio, sus dependencias específicas y el modelo entrenado.
-
-## 7. Pruebas y calidad del código
-
-El proyecto incorpora pruebas unitarias con `pytest` para validar los procesos de limpieza, transformación y preparación de datos implementados en `mlops_pipeline/model_preprocessing.py`.
-
-Para ejecutar las pruebas desde la raíz del repositorio:
-
-```bash
-python -m pytest -v
-```
-
-Para generar un informe de cobertura:
-
-```bash
-python -m pytest --cov=mlops_pipeline.model_preprocessing --cov-report=term-missing
-```
-
-En la ejecución local documentada se obtuvieron **8 pruebas satisfactorias y una cobertura del 100 % sobre `model_preprocessing.py`**. Este porcentaje corresponde exclusivamente al módulo evaluado y no a la totalidad del proyecto.
-
-### Integración con SonarCloud
-
-El repositorio integra SonarCloud mediante un flujo de **GitHub Actions**, configurado para ejecutar pruebas y generar el informe de cobertura antes del análisis estático.
-
-La integración contempla la revisión de:
-
-- Calidad y mantenibilidad del código.
-- Duplicaciones y posibles problemas de implementación.
-- Seguridad y posibles vulnerabilidades.
-- Cobertura de pruebas.
-
-El análisis se ejecuta automáticamente ante cambios en las ramas configuradas del repositorio.
-
-La cobertura local está validada; sin embargo, la asociación de este informe con las medidas de cobertura del panel de SonarCloud continúa pendiente de revisión.
-
-## 8. Entorno y dependencias
-
-El proyecto utiliza Python y dos archivos de dependencias, separados según el propósito de ejecución:
-
-- `requirements.txt`: paquetes necesarios para el flujo de análisis, entrenamiento, monitoreo y visualización.
-- `requirements-api.txt`: dependencias específicas para ejecutar la API.
-
-Entre las principales librerías utilizadas se encuentran:
-
-`pandas`, `numpy`, `scikit-learn`, `xgboost`, `scipy`, `joblib`, `matplotlib`, `seaborn`, `streamlit` y `plotly`.
-
-También se incluye `ipykernel` para facilitar la ejecución de celdas `# %%` desde VS Code.
-
-### Instalación en Windows
-
-Crea y activa el entorno virtual:
+Desde PowerShell, en la raíz del repositorio:
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-```
-
-Actualiza pip e instala las dependencias:
-
-```powershell
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
+
+python -m mlops_pipeline.eda_analisis
+python -m mlops_pipeline.ft_engineering
+python -m mlops_pipeline.model_training_evaluation
+python -m mlops_pipeline.model_monitoring
+streamlit run app.py
 ```
 
-Como alternativa, se puede utilizar `set_up.bat` desde la raíz del proyecto para crear e instalar el entorno. Después de su ejecución, activa el entorno en la terminal actual.
+Ejecuta los módulos en ese orden. El monitoreo requiere los datasets y el modelo generados por las etapas anteriores. También se puede correr el EDA desde VS Code con **Run All Cells** en `eda_analisis.py`.
 
-## 9. Resultados y artefactos generados
+## Monitoreo y dashboard
 
-Los principales resultados del flujo se organizan dentro de `outputs/`:
+El monitoreo separa cronológicamente los registros válidos de `fecha_prestamo`: usa aproximadamente el 75 % más antiguo como referencia y el 25 % más reciente como período actual. Calcula PSI, Jensen-Shannon, KS y chi-cuadrado, y genera predicciones para el período actual.
 
-| Ubicación | Descripción |
+**Limitación importante:** aunque los períodos del análisis de drift se ordenan por fecha, los datos de origen se dividieron aleatoriamente entre entrenamiento y prueba antes de volver a unirlos. Por ello, esta comparación es retrospectiva y no constituye una validación temporal independiente. El script no calcula métricas de desempeño del modelo para el período actual, no recibe datos nuevos de producción ni ejecuta muestreos periódicos automáticamente; cada corrida es manual.
+
+`app.py` presenta resumen, distribuciones, métricas por variable, evolución del drift y recomendaciones. La vista temporal requiere historial de ejecuciones con fechas distintas. El dashboard utiliza los reportes generados por `model_monitoring.py`, entre ellos:
+
+- `outputs/reports/reporte_data_drift.csv`
+- `outputs/reports/historial_data_drift.csv`
+- `outputs/reports/datos_referencia.csv`
+- `outputs/reports/datos_monitoreo.csv`
+
+## API y Docker
+
+La API de FastAPI carga `outputs/models/mejor_modelo.joblib` y ofrece:
+
+| Endpoint | Uso |
 |---|---|
-| `outputs/graficos_eda/` | Visualizaciones del análisis exploratorio. |
-| `outputs/datasets/` | Conjuntos de entrenamiento y evaluación, originales y transformados. |
-| `outputs/models/mejor_modelo.joblib` | Modelo seleccionado y entrenado. |
-| `outputs/models/preprocesador.joblib` | Pipeline de limpieza y transformación ajustado. |
-| `outputs/reports/comparacion_modelos.csv` | Resultados de la validación cruzada. |
-| `outputs/reports/evaluacion_final.csv` | Métricas del modelo sobre el conjunto de evaluación. |
-| `outputs/reports/curva_roc.png` | Curva ROC del modelo seleccionado. |
-| `outputs/reports/reporte_data_drift.csv` | Métricas de drift de la ejecución más reciente. |
-| `outputs/reports/historial_data_drift.csv` | Registro histórico de las ejecuciones de monitoreo. |
-| `outputs/reports/datos_monitoreo.csv` | Registros evaluados, predicciones y probabilidades. |
+| `GET /health` | Consultar el estado del servicio y del modelo. |
+| `POST /predict` | Enviar registros JSON para obtener predicciones. |
+| `POST /predict/csv` | Enviar un CSV y recibir predicciones en CSV. |
 
-La carpeta `outputs/` está excluida del control de versiones mediante `.gitignore`. Por esta razón, los artefactos deben generarse ejecutando el flujo antes de iniciar la aplicación o construir la imagen Docker.
+Las solicitudes deben incluir las variables predictoras requeridas, sin `Pago_atiempo`. La documentación interactiva se encuentra en `/docs`.
 
-## 10. Estructura del repositorio
+Construye y ejecuta la imagen desde la raíz del proyecto, después de entrenar el modelo:
+
+```powershell
+docker build -t api-riesgo-crediticio:v2 .
+docker run --rm -p 8000:8000 api-riesgo-crediticio:v2
+```
+
+La API queda disponible en `http://localhost:8000` y su documentación en `http://localhost:8000/docs`. Docker instala las dependencias fijadas en `requirements-api.txt`, incluido XGBoost. Si se reentrena el modelo o se actualizan dependencias, reconstruye la imagen y verifica la compatibilidad del artefacto.
+
+## Pruebas y SonarCloud
+
+El repositorio contiene 16 pruebas: 14 sobre preprocesamiento e ingeniería de características y 2 sobre las funciones de salud y predicción JSON de la API. No hay pruebas automatizadas específicas para entrenamiento, monitoreo, dashboard ni para la API mediante solicitudes HTTP.
+
+Instala las dependencias de prueba y ejecútalas desde la raíz:
+
+```powershell
+python -m pip install pytest pytest-cov
+python -m pytest -v
+```
+
+GitHub Actions ejecuta las pruebas en *push* a `main` o `developer` y al abrir o actualizar un *pull request*. También genera cobertura y ejecuta el análisis de SonarCloud. La cobertura se configura para `ft_engineering` y `model_preprocessing`, no para todo el proyecto:
+
+```powershell
+python -m pytest --cov=mlops_pipeline.ft_engineering --cov=mlops_pipeline.model_preprocessing --cov-report=term-missing --cov-report=xml:coverage.xml
+```
+
+Para autenticar el análisis remoto, el repositorio de GitHub debe tener configurado el secreto `SONAR_TOKEN`.
+
+### Captura del dashboard de SonarCloud
+
+**Pega aquí la captura del dashboard de SonarCloud:**
+
+![Dashboard de SonarCloud](sonar_dashboard.png)
+
+## Dependencias y artefactos
+
+- `requirements.txt`: dependencias del análisis, entrenamiento, monitoreo y dashboard.
+- `requirements-api.txt`: dependencias con versiones fijadas para la API en Docker.
+
+Los principales artefactos se guardan en `outputs/`: datasets originales y transformados en `datasets/`, modelos en `models/`, reportes del entrenamiento y monitoreo en `reports/`, y gráficos del EDA en `graficos_eda/`. Los reportes y gráficos están excluidos de Git mediante `.gitignore`; se generan localmente al ejecutar el flujo.
+
+## Estructura principal
 
 ```text
 mlops_mkmena/
-├── .github/
-│   └── workflows/
-│       └── build.yml
-├── .gitignore
-├── .dockerignore
-├── Dockerfile
-├── BD_creditos.xlsx
-├── app.py
-├── config.json
-├── requirements.txt
-├── requirements-api.txt
-├── set_up.bat
-├── README.md
-├── sonar-project.properties
-├── test/
-│   └── test_model_preprocessing.py
+├── .github/workflows/build.yml
 ├── mlops_pipeline/
 │   ├── cargar_datos.py
 │   ├── eda_analisis.py
@@ -325,13 +159,13 @@ mlops_mkmena/
 │   ├── model_monitoring.py
 │   ├── model_preprocessing.py
 │   └── model_training_evaluation.py
-└── outputs/
-    ├── datasets/
-    ├── graficos_eda/
-    ├── models/
-    ├── reports/
+├── test/
+│   ├── test_model_deploy.py
+│   └── test_model_preprocessing.py
+├── app.py
+├── Dockerfile
+├── requirements-api.txt
+└── requirements.txt
 ```
-
----
 
 **Proyecto final Machine Learning | 2026 - 2**

@@ -1,742 +1,735 @@
-"""Panel de monitoreo del modelo de riesgo crediticio (Streamlit).
-
-Requiere haber ejecutado antes los módulos de preparación y monitoreo de
-mlops_pipeline (genera los archivos dentro de outputs/).
-Dependencias adicionales: plotly.
-"""
+"""Dashboard de monitoreo de riesgo crediticio."""
 
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
 
-# ---------------------------------------------------------------------------
-# 1. Rutas y constantes
-# ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------
+# 1. Rutas y configuración
+# ---------------------------------------------------------------------
 
 CARPETA_PROYECTO = Path(__file__).resolve().parent
-CARPETA_DATASETS = CARPETA_PROYECTO / "outputs" / "datasets"
 CARPETA_REPORTES = CARPETA_PROYECTO / "outputs" / "reports"
 
-OBJETIVO = "Pago_atiempo"
+COLOR_REFERENCIA = "#5276A7"
+COLOR_ACTUAL = "#E58A45"
 
-TINTA = "#16263B"
-TEAL = "#0F766E"
-VERDE = "#2E8B63"
-AMBAR = "#D98E04"
-ROJO = "#C8372D"
-COLOR_HIST = "#5B7DB1"
-COLOR_ACTUAL = "#E07A3F"
+COLORES_ESTADO = {
+    "Estable": "#278568",
+    "Moderado": "#D99A32",
+    "Importante": "#C94C4C",
+}
 
-COLOR_ESTADO = {"Estable": VERDE, "Moderado": AMBAR, "Crítico": ROJO}
-ICONO_ESTADO = {"Estable": "🟢", "Moderado": "🟡", "Crítico": "🔴"}
-
-
-# ---------------------------------------------------------------------------
-# 2. Configuración de la página y estilos
-# ---------------------------------------------------------------------------
 
 st.set_page_config(
     page_title="Monitoreo de riesgo crediticio",
-    page_icon="🛡️",
+    page_icon="📊",
     layout="wide",
-    initial_sidebar_state="expanded",
 )
 
+
+# ---------------------------------------------------------------------
+# 2. Estilos
+# ---------------------------------------------------------------------
+
 st.markdown(
-    f"""
+    """
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+    .block-container {
+        max-width: 1250px;
+        padding-top: 2rem;
+        padding-bottom: 3rem;
+    }
 
-    html, body, [class*="css"], .stMarkdown, button, input, select, textarea {{
-        font-family: 'Plus Jakarta Sans', sans-serif;
-    }}
+    .encabezado {
+        padding: 30px;
+        border-radius: 14px;
+        background: linear-gradient(115deg, #172B46, #245B68);
+        color: white;
+        margin-bottom: 25px;
+    }
 
-    .block-container {{ padding-top: 1.6rem; padding-bottom: 3rem; max-width: 1400px; }}
+    .encabezado h1 {
+        color: white;
+        font-size: 2rem;
+        margin-bottom: 8px;
+    }
 
-    .cabecera {{
-        background: linear-gradient(120deg, {TINTA} 0%, #1F3A5C 60%, {TEAL} 130%);
-        border-radius: 18px;
-        padding: 26px 32px;
-        margin-bottom: 22px;
-        color: #fff;
-    }}
-    .cabecera h1 {{ color: #fff; font-size: 1.9rem; font-weight: 800; margin: 0 0 4px 0; padding: 0; }}
-    .cabecera p {{ color: rgba(255,255,255,.78); margin: 0; font-size: .98rem; }}
-    .cabecera .meta {{ margin-top: 12px; font-size: .82rem; color: rgba(255,255,255,.65); }}
+    .encabezado p {
+        color: #DCE8EE;
+        margin-bottom: 0;
+        font-size: 1rem;
+    }
 
-    .estado {{
-        border-radius: 14px; padding: 16px 22px; margin: 6px 0 18px 0;
-        display: flex; align-items: center; gap: 16px;
-        border: 1px solid var(--acento);
-        background: color-mix(in srgb, var(--acento) 12%, transparent);
-    }}
-    .estado .punto {{
-        width: 18px; height: 18px; border-radius: 50%; background: var(--acento);
-        box-shadow: 0 0 0 6px color-mix(in srgb, var(--acento) 25%, transparent);
-        flex-shrink: 0;
-    }}
-    .estado .texto b {{ font-size: 1.05rem; }}
-    .estado .texto span {{ display: block; font-size: .88rem; opacity: .8; margin-top: 2px; }}
+    .estado {
+        padding: 17px 20px;
+        border-radius: 10px;
+        margin: 12px 0 22px 0;
+        border-left: 5px solid var(--color);
+        background: color-mix(in srgb, var(--color) 10%, transparent);
+    }
 
-    .pill {{
-        display: inline-block; padding: 3px 12px; border-radius: 999px;
-        font-size: .78rem; font-weight: 700; color: #fff; background: var(--acento);
-    }}
+    .estado strong {
+        font-size: 1.05rem;
+    }
 
-    .reco {{
-        border-radius: 12px; padding: 12px 16px; margin-bottom: 10px;
-        border-left: 5px solid var(--acento);
-        background: color-mix(in srgb, var(--acento) 10%, transparent);
-    }}
-    .reco b {{ display: block; margin-bottom: 2px; }}
+    .estado p {
+        margin: 5px 0 0 0;
+    }
 
-    .stTabs [data-baseweb="tab-list"] {{ gap: 6px; }}
-    .stTabs [data-baseweb="tab"] {{
-        border-radius: 10px 10px 0 0; padding: 8px 18px; font-weight: 600;
-    }}
-    .stTabs [aria-selected="true"] {{ color: {TEAL}; }}
+    .recomendacion {
+        padding: 15px 18px;
+        margin-bottom: 12px;
+        border-left: 4px solid var(--color);
+        border-radius: 8px;
+        background: color-mix(in srgb, var(--color) 9%, transparent);
+    }
 
-    h2, h3 {{ font-weight: 700; }}
+    .recomendacion strong {
+        display: block;
+        margin-bottom: 5px;
+    }
+
+    h2, h3 {
+        color: inherit;
+        font-weight: 650;
+    }
+
     </style>
     """,
     unsafe_allow_html=True,
 )
 
 
-# ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------
 # 3. Funciones auxiliares
-# ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------
 
-@st.cache_data(show_spinner=False)
-def leer_csv(ruta: str, firma: float) -> pd.DataFrame:
-    """Lee un CSV y actualiza la caché cuando cambia el archivo."""
+@st.cache_data
+def cargar_csv(ruta, fecha_modificacion):
     return pd.read_csv(ruta)
 
 
-def cargar(ruta: Path, obligatorio: bool = True):
-    """Carga un archivo CSV y muestra un mensaje si falta uno obligatorio."""
+def cargar_archivo(nombre):
+    ruta = CARPETA_REPORTES / nombre
+
     if not ruta.exists():
-        if obligatorio:
-            st.error(
-                f"No se encontró `{ruta.relative_to(CARPETA_PROYECTO)}`. "
-                "Ejecuta primero los módulos de preparación y monitoreo "
-                "de mlops_pipeline."
-            )
-            st.stop()
-        return None
-    return leer_csv(str(ruta), ruta.stat().st_mtime)
+        st.error(
+            f"No se encontró el archivo `{nombre}`. "
+            "Ejecuta primero `model_monitoring.py`."
+        )
+        st.stop()
+
+    return cargar_csv(str(ruta), ruta.stat().st_mtime)
 
 
-def estado_psi(valor, umbral_mod, umbral_crit):
-    """Clasifica el nivel de drift según el PSI."""
-    if valor >= umbral_crit:
-        return "Crítico"
-    if valor >= umbral_mod:
+def clasificar_psi(valor):
+    if valor >= 0.25:
+        return "Importante"
+    elif valor >= 0.10:
         return "Moderado"
     return "Estable"
 
 
-def es_binaria(serie: pd.Series) -> bool:
-    """Indica si una variable contiene únicamente los valores 0 y 1."""
+def es_binaria(serie):
     valores = set(serie.dropna().unique())
     return bool(valores) and valores.issubset({0, 1})
 
 
-def estilo_plotly(fig, alto=380):
-    """Aplica un estilo visual común a los gráficos."""
+def estilo_grafico(fig, altura=400):
     fig.update_layout(
-        height=alto,
-        margin=dict(l=10, r=10, t=50, b=10),
+        height=altura,
+        margin=dict(l=15, r=15, t=55, b=15),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="Plus Jakarta Sans, sans-serif"),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
-        title=dict(x=0, font=dict(size=16)),
+        font=dict(family="Arial, sans-serif"),
+        title=dict(x=0),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            x=0,
+        ),
     )
-    fig.update_xaxes(gridcolor="rgba(128,128,128,.18)", zeroline=False)
-    fig.update_yaxes(gridcolor="rgba(128,128,128,.18)", zeroline=False)
+
+    fig.update_xaxes(
+        showgrid=True,
+        gridcolor="rgba(128,128,128,0.15)",
+    )
+
+    fig.update_yaxes(
+        showgrid=True,
+        gridcolor="rgba(128,128,128,0.15)",
+    )
+
     return fig
 
 
-# ---------------------------------------------------------------------------
-# 4. Carga de datos
-# ---------------------------------------------------------------------------
+def mostrar_recomendacion(titulo, mensaje, estado):
+    color = COLORES_ESTADO[estado]
 
-datos_train = cargar(CARPETA_DATASETS / "dataset_train.csv")
-datos_monitoreo = cargar(CARPETA_REPORTES / "datos_monitoreo.csv")
-reporte = cargar(CARPETA_REPORTES / "reporte_data_drift.csv")
-historial = cargar(
-    CARPETA_REPORTES / "historial_data_drift.csv",
-    obligatorio=False,
+    st.markdown(
+        f"""
+        <div class="recomendacion" style="--color:{color}">
+            <strong>{titulo}</strong>
+            {mensaje}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+# ---------------------------------------------------------------------
+# 4. Cargar resultados del monitoreo
+# ---------------------------------------------------------------------
+
+datos_referencia = cargar_archivo("datos_referencia.csv")
+datos_actuales = cargar_archivo("datos_monitoreo.csv")
+reporte = cargar_archivo("reporte_data_drift.csv")
+historial = cargar_archivo("historial_data_drift.csv")
+
+reporte["Estado"] = reporte["PSI"].apply(clasificar_psi)
+
+historial["Fecha_monitoreo"] = pd.to_datetime(
+    historial["Fecha_monitoreo"],
+    errors="coerce",
 )
 
-if historial is not None and not historial.empty:
-    historial["Fecha_monitoreo"] = pd.to_datetime(historial["Fecha_monitoreo"])
-else:
-    historial = pd.DataFrame()
-
-fecha_ultima = (
+fecha_monitoreo = (
     str(reporte["Fecha_monitoreo"].iloc[0])
-    if "Fecha_monitoreo" in reporte.columns and len(reporte)
-    else "sin fecha"
+    if not reporte.empty
+    else "No disponible"
 )
 
+n_registros = len(datos_actuales)
+n_variables = len(reporte)
 
-# ---------------------------------------------------------------------------
-# 5. Configuración de filtros y umbrales
-# ---------------------------------------------------------------------------
+n_importantes = (reporte["Estado"] == "Importante").sum()
+n_moderadas = (reporte["Estado"] == "Moderado").sum()
 
-with st.sidebar:
-    st.markdown("## ⚙️ Configuración")
-
-    st.markdown("**Umbrales de alerta (PSI)**")
-    umbral_mod = st.slider(
-        "Cambio moderado desde", 0.05, 0.30, 0.10, 0.01
-    )
-    umbral_crit = st.slider(
-        "Cambio crítico desde", 0.15, 0.60, 0.25, 0.01
-    )
-    if umbral_crit <= umbral_mod:
-        st.warning("El umbral crítico debe ser mayor que el moderado.")
-        umbral_crit = umbral_mod + 0.05
-
-    alfa = st.select_slider(
-        "Nivel de significancia (valor p)",
-        options=[0.01, 0.05, 0.10],
-        value=0.05,
-    )
-
-    st.divider()
-    st.markdown("**Filtros de variables**")
-    tipos = sorted(reporte["Tipo"].dropna().unique())
-    tipos_sel = st.multiselect("Tipo de variable", tipos, default=tipos)
-    estados_sel = st.multiselect(
-        "Estado",
-        ["Estable", "Moderado", "Crítico"],
-        default=["Estable", "Moderado", "Crítico"],
-    )
-    busqueda = st.text_input(
-        "Buscar variable", placeholder="p. ej. puntaje"
-    )
-
-    st.divider()
-    st.caption(f"Último monitoreo: **{fecha_ultima}**")
-    if st.button("🔄 Recargar archivos", use_container_width=True):
-        st.cache_data.clear()
-        st.rerun()
-
-
-# Se recalculan las etiquetas para que respondan a los umbrales elegidos.
-reporte = reporte.copy()
-reporte["Estado"] = reporte["PSI"].apply(
-    lambda valor: estado_psi(valor, umbral_mod, umbral_crit)
-)
-reporte["Significativo"] = reporte["Valor_p"] < alfa
-
-reporte_f = reporte[
-    reporte["Tipo"].isin(tipos_sel)
-    & reporte["Estado"].isin(estados_sel)
-    & reporte["Variable"].str.contains(busqueda, case=False, na=False)
-]
-
-n_total = len(reporte)
-n_crit = int((reporte["Estado"] == "Crítico").sum())
-n_mod = int((reporte["Estado"] == "Moderado").sum())
-
-if n_crit > 0:
-    nivel = "Crítico"
-elif n_mod > 0:
-    nivel = "Moderado"
+if n_importantes > 0:
+    estado_general = "Importante"
+elif n_moderadas > 0:
+    estado_general = "Moderado"
 else:
-    nivel = "Estable"
+    estado_general = "Estable"
 
 
-# ---------------------------------------------------------------------------
-# 6. Encabezado y alerta general
-# ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------
+# 5. Encabezado
+# ---------------------------------------------------------------------
 
 st.markdown(
-    f"""
-    <div class="cabecera">
-        <h1>🛡️ Monitoreo del modelo de riesgo crediticio</h1>
-        <p>Seguimiento de la estabilidad de las variables y detección de data drift.</p>
-        <div class="meta">Último monitoreo: {fecha_ultima} &nbsp;|&nbsp;
-        {len(datos_monitoreo):,} registros monitoreados &nbsp;|&nbsp;
-        {n_total} variables analizadas</div>
+    """
+    <div class="encabezado">
+        <h1>Monitoreo de riesgo crediticio</h1>
+        <p>
+            Seguimiento de la estabilidad de los datos y detección
+            de cambios en las distribuciones del modelo.
+        </p>
     </div>
     """,
     unsafe_allow_html=True,
 )
 
+col1, col2, col3 = st.columns(3)
+
+col1.metric("Registros del período actual", f"{n_registros:,}")
+col2.metric("Variables analizadas", n_variables)
+col3.metric("Estado general", estado_general)
+
 mensajes_estado = {
-    "Crítico": (
-        f"{n_crit} variable(s) superan el umbral crítico de PSI "
-        f"({umbral_crit:.2f}). Revisa la pestaña Recomendaciones."
-    ),
+    "Estable": "No se detectan cambios importantes en las distribuciones.",
     "Moderado": (
-        f"{n_mod} variable(s) muestran cambios moderados. "
-        "Mantén seguimiento en la próxima ejecución."
+        f"{n_moderadas} variable(s) presentan cambios moderados. "
+        "Se recomienda mantener su seguimiento."
     ),
-    "Estable": (
-        "Todas las variables se mantienen dentro de los umbrales definidos."
+    "Importante": (
+        f"{n_importantes} variable(s) presentan cambios importantes. "
+        "Se recomienda investigar sus causas."
     ),
 }
 
 st.markdown(
     f"""
-    <div class="estado" style="--acento:{COLOR_ESTADO[nivel]}">
-        <div class="punto"></div>
-        <div class="texto"><b>Estado general: {nivel}</b>
-        <span>{mensajes_estado[nivel]}</span></div>
+    <div class="estado" style="--color:{COLORES_ESTADO[estado_general]}">
+        <strong>Estado del monitoreo: {estado_general}</strong>
+        <p>{mensajes_estado[estado_general]}</p>
     </div>
     """,
     unsafe_allow_html=True,
 )
 
+st.caption(f"Último monitoreo: {fecha_monitoreo}")
 
-# ---------------------------------------------------------------------------
-# 7. Secciones principales del dashboard
-# ---------------------------------------------------------------------------
 
-tab_resumen, tab_dist, tab_metricas, tab_tiempo, tab_reco = st.tabs(
+# ---------------------------------------------------------------------
+# 6. Secciones del dashboard
+# ---------------------------------------------------------------------
+
+tab_resumen, tab_distribuciones, tab_metricas, tab_evolucion = st.tabs(
     [
-        "📊 Resumen",
-        "📈 Distribuciones",
-        "🧮 Métricas por variable",
-        "⏱️ Evolución temporal",
-        "💡 Recomendaciones",
+        "01 · Resumen",
+        "02 · Distribuciones",
+        "03 · Métricas de Data Drift",
+        "04 · Evolución y recomendaciones",
     ]
 )
 
 
-# ------------------------------ RESUMEN ------------------------------------
+# ---------------------------------------------------------------------
+# 7. Resumen
+# ---------------------------------------------------------------------
 
 with tab_resumen:
-    st.subheader("Variables con mayor cambio en su distribución")
 
-    top = reporte.sort_values("PSI", ascending=True).tail(15)
-    barras = go.Figure(
+    st.subheader("Períodos comparados")
+
+    fecha_inicio_ref = reporte["Inicio_referencia"].iloc[0]
+    fecha_fin_ref = reporte["Fin_referencia"].iloc[0]
+    fecha_inicio_act = reporte["Inicio_actual"].iloc[0]
+    fecha_fin_act = reporte["Fin_actual"].iloc[0]
+
+    c1, c2 = st.columns(2)
+
+    with c1:
+        st.markdown("**Período de referencia**")
+        st.write(f"{fecha_inicio_ref} — {fecha_fin_ref}")
+        st.caption(
+            f"{len(datos_referencia):,} registros utilizados"
+        )
+
+    with c2:
+        st.markdown("**Período actual**")
+        st.write(f"{fecha_inicio_act} — {fecha_fin_act}")
+        st.caption(
+            f"{len(datos_actuales):,} registros utilizados"
+        )
+
+    st.divider()
+
+    st.subheader("Variables con mayor Data Drift")
+
+    top = reporte.sort_values(
+        "PSI",
+        ascending=True,
+    ).tail(12)
+
+    fig = go.Figure()
+
+    fig.add_trace(
         go.Bar(
             x=top["PSI"],
             y=top["Variable"],
             orientation="h",
-            marker_color=[COLOR_ESTADO[estado] for estado in top["Estado"]],
+            marker_color=[
+                COLORES_ESTADO[estado]
+                for estado in top["Estado"]
+            ],
             text=top["PSI"].round(3),
             textposition="outside",
-            hovertemplate="%{y}<br>PSI: %{x:.4f}<extra></extra>",
         )
     )
-    barras.add_vline(
-        x=umbral_mod,
+
+    fig.add_vline(
+        x=0.10,
         line_dash="dash",
-        line_color=AMBAR,
+        line_color="#D99A32",
         annotation_text="Moderado",
-        annotation_position="top",
     )
-    barras.add_vline(
-        x=umbral_crit,
+
+    fig.add_vline(
+        x=0.25,
         line_dash="dash",
-        line_color=ROJO,
-        annotation_text="Crítico",
-        annotation_position="top",
+        line_color="#C94C4C",
+        annotation_text="Importante",
     )
-    barras.update_layout(title="Variables ordenadas por PSI")
+
+    fig.update_layout(
+        title="Índice de estabilidad poblacional (PSI)",
+        xaxis_title="PSI",
+        yaxis_title="Variable",
+    )
+
     st.plotly_chart(
-        estilo_plotly(barras, 600),
+        estilo_grafico(fig, 480),
         use_container_width=True,
     )
 
 
-# --------------------------- DISTRIBUCIONES --------------------------------
+# ---------------------------------------------------------------------
+# 8. Comparación de distribuciones
+# ---------------------------------------------------------------------
 
-with tab_dist:
-    comunes = [
-        columna
-        for columna in datos_train.columns
-        if columna in datos_monitoreo.columns and columna != OBJETIVO
-    ]
-    orden = [
+with tab_distribuciones:
+
+    st.subheader("Comparación de distribuciones")
+
+    variables_disponibles = [
         variable
-        for variable in reporte.sort_values(
-            "PSI", ascending=False
-        )["Variable"]
-        if variable in comunes
+        for variable in reporte["Variable"]
+        if (
+            variable in datos_referencia.columns
+            and variable in datos_actuales.columns
+        )
     ]
 
-    if not orden:
+    if not variables_disponibles:
         st.warning(
-            "No hay variables comunes entre los datos históricos y los "
-            "datos monitoreados para comparar sus distribuciones."
-        )
-    else:
-        variable = st.selectbox(
-            "Variable a inspeccionar (ordenadas por PSI)",
-            orden,
+            "No hay variables disponibles para comparar."
         )
 
-        fila = reporte[reporte["Variable"] == variable].iloc[0]
-        ref = datos_train[variable].dropna()
-        act = datos_monitoreo[variable].dropna()
+    else:
+
+        variables_ordenadas = (
+            reporte.sort_values("PSI", ascending=False)["Variable"]
+            .tolist()
+        )
+
+        variables_ordenadas = [
+            variable
+            for variable in variables_ordenadas
+            if variable in variables_disponibles
+        ]
+
+        variable = st.selectbox(
+            "Selecciona una variable",
+            variables_ordenadas,
+        )
+
+        fila = reporte[
+            reporte["Variable"] == variable
+        ].iloc[0]
+
+        referencia = datos_referencia[variable].dropna()
+        actual = datos_actuales[variable].dropna()
+
+        estado = fila["Estado"]
 
         st.markdown(
-            f"Estado: <span class='pill' "
-            f"style='--acento:{COLOR_ESTADO[fila['Estado']]}'>"
-            f"{fila['Estado']}</span>",
-            unsafe_allow_html=True,
+            f"**Estado de la variable:** {estado}"
         )
 
-        m1, m2, m3, m4 = st.columns(4)
+        m1, m2, m3 = st.columns(3)
+
         m1.metric("PSI", f"{fila['PSI']:.4f}")
         m2.metric(
             "Jensen-Shannon",
             f"{fila['Jensen_Shannon']:.4f}",
         )
+
         if pd.notna(fila["KS"]):
-            m3.metric("Estadístico KS", f"{fila['KS']:.4f}")
+            m3.metric("KS", f"{fila['KS']:.4f}")
         else:
             m3.metric(
                 "Chi-cuadrado",
-                f"{fila['Chi_Cuadrado']:.3f}",
+                f"{fila['Chi_Cuadrado']:.4f}",
             )
-        m4.metric("Valor p", f"{fila['Valor_p']:.4f}")
 
-        if ref.empty or act.empty:
+        if referencia.empty or actual.empty:
             st.warning(
-                "No hay suficientes valores válidos para comparar "
-                "esta variable."
+                "No hay suficientes datos para representar esta variable."
             )
-        elif es_binaria(ref):
-            comp = pd.DataFrame(
-                {
-                    "Valor": ["0", "1"] * 2,
-                    "Conjunto": ["Histórico"] * 2 + ["Actual"] * 2,
-                    "Porcentaje": list(
-                        ref.value_counts(normalize=True).reindex(
-                            [0, 1], fill_value=0
-                        ) * 100
+
+        elif es_binaria(referencia):
+
+            comparacion = pd.DataFrame({
+                "Valor": ["0", "1", "0", "1"],
+                "Período": [
+                    "Referencia",
+                    "Referencia",
+                    "Actual",
+                    "Actual",
+                ],
+                "Porcentaje": (
+                    list(
+                        referencia.value_counts(normalize=True)
+                        .reindex([0, 1], fill_value=0) * 100
                     )
-                    + list(
-                        act.value_counts(normalize=True).reindex(
-                            [0, 1], fill_value=0
-                        ) * 100
-                    ),
-                }
-            )
+                    +
+                    list(
+                        actual.value_counts(normalize=True)
+                        .reindex([0, 1], fill_value=0) * 100
+                    )
+                ),
+            })
+
             fig = px.bar(
-                comp,
+                comparacion,
                 x="Valor",
                 y="Porcentaje",
-                color="Conjunto",
+                color="Período",
                 barmode="group",
                 color_discrete_map={
-                    "Histórico": COLOR_HIST,
+                    "Referencia": COLOR_REFERENCIA,
                     "Actual": COLOR_ACTUAL,
                 },
                 text_auto=".1f",
-                title=f"{variable}: distribución histórica vs. actual",
+                title=f"Distribución de {variable}",
             )
+
+            fig.update_layout(
+                yaxis_title="Porcentaje de registros (%)",
+                xaxis_title="Valor",
+            )
+
+        else:
+
+            minimo = min(referencia.min(), actual.min())
+            maximo = max(referencia.max(), actual.max())
+
+            if minimo == maximo:
+                st.info(
+                    "La variable presenta el mismo valor en ambos períodos."
+                )
+                fig = None
+
+            else:
+
+                fig = go.Figure()
+
+                fig.add_trace(
+                    go.Histogram(
+                        x=referencia,
+                        name="Referencia",
+                        opacity=0.65,
+                        marker_color=COLOR_REFERENCIA,
+                        histnorm="percent",
+                        nbinsx=25,
+                    )
+                )
+
+                fig.add_trace(
+                    go.Histogram(
+                        x=actual,
+                        name="Actual",
+                        opacity=0.65,
+                        marker_color=COLOR_ACTUAL,
+                        histnorm="percent",
+                        nbinsx=25,
+                    )
+                )
+
+                fig.update_layout(
+                    title=f"Distribución de {variable}",
+                    barmode="overlay",
+                    xaxis_title="Valor de la variable",
+                    yaxis_title="Porcentaje de registros (%)",
+                )
+
+        if fig is not None:
             st.plotly_chart(
-                estilo_plotly(fig, 420),
+                estilo_grafico(fig, 430),
                 use_container_width=True,
             )
-        else:
-            lo = float(min(ref.min(), act.min()))
-            hi = float(max(ref.max(), act.max()))
-
-            if lo == hi:
-                st.info(
-                    "La variable tiene un único valor en ambos conjuntos."
-                )
-            else:
-                bins = 25
-                fig = go.Figure()
-                for nombre, serie, color in [
-                    ("Histórico", ref, COLOR_HIST),
-                    ("Actual", act, COLOR_ACTUAL),
-                ]:
-                    fig.add_trace(
-                        go.Histogram(
-                            x=serie,
-                            name=nombre,
-                            opacity=0.6,
-                            marker_color=color,
-                            histnorm="percent",
-                            nbinsx=bins,
-                            xbins=dict(
-                                start=lo,
-                                end=hi,
-                                size=(hi - lo) / bins,
-                            ),
-                        )
-                    )
-                fig.update_layout(
-                    barmode="overlay",
-                    xaxis_range=[lo, hi],
-                    title=f"{variable}: distribución histórica vs. actual",
-                    yaxis_title="% de registros",
-                )
-                st.plotly_chart(
-                    estilo_plotly(fig, 420),
-                    use_container_width=True,
-                )
-
-                box = go.Figure()
-                box.add_trace(
-                    go.Box(
-                        x=ref,
-                        name="Histórico",
-                        marker_color=COLOR_HIST,
-                        boxmean=True,
-                    )
-                )
-                box.add_trace(
-                    go.Box(
-                        x=act,
-                        name="Actual",
-                        marker_color=COLOR_ACTUAL,
-                        boxmean=True,
-                    )
-                )
-                box.update_layout(
-                    xaxis_range=[lo, hi],
-                    title="Boxplot comparativo",
-                    showlegend=False,
-                )
-                st.plotly_chart(
-                    estilo_plotly(box, 260),
-                    use_container_width=True,
-                )
 
 
-# ------------------------------ MÉTRICAS -----------------------------------
+# ---------------------------------------------------------------------
+# 9. Tabla de métricas
+# ---------------------------------------------------------------------
 
 with tab_metricas:
-    st.markdown(
-        f"Mostrando **{len(reporte_f)}** de {n_total} variables "
-        "según los filtros de la barra lateral."
+
+    st.subheader("Resultados de las métricas de Data Drift")
+
+    st.write(
+        "Comparación estadística entre el período de referencia "
+        "y el período actual."
     )
 
-    columnas_tabla = [
+    columnas = [
         "Variable",
         "Tipo",
-        "Estado",
-        "PSI",
-        "Jensen_Shannon",
         "KS",
         "Chi_Cuadrado",
         "Valor_p",
-        "Significativo",
+        "PSI",
+        "Jensen_Shannon",
+        "Estado",
     ]
-    tabla = reporte_f[columnas_tabla].copy()
-    tabla["Estado"] = tabla["Estado"].map(
-        lambda estado: f"{ICONO_ESTADO[estado]} {estado}"
+
+    tabla = reporte[columnas].copy()
+
+    tabla = tabla.sort_values(
+        "PSI",
+        ascending=False,
+    )
+
+    tabla = tabla.rename(
+        columns={
+            "Chi_Cuadrado": "Chi-cuadrado",
+            "Valor_p": "Valor p",
+            "Jensen_Shannon": "Jensen-Shannon",
+        }
     )
 
     st.dataframe(
         tabla,
         use_container_width=True,
         hide_index=True,
-        height=480,
         column_config={
-            "PSI": st.column_config.NumberColumn("PSI", format="%.4f"),
-            "Jensen_Shannon": st.column_config.NumberColumn(
-                "Jensen-Shannon", format="%.4f"
+            "KS": st.column_config.NumberColumn(format="%.4f"),
+            "Chi-cuadrado": st.column_config.NumberColumn(
+                format="%.4f"
             ),
-            "KS": st.column_config.NumberColumn("KS", format="%.4f"),
-            "Chi_Cuadrado": st.column_config.NumberColumn(
-                "Chi²", format="%.3f"
+            "Valor p": st.column_config.NumberColumn(
+                format="%.4f"
             ),
-            "Valor_p": st.column_config.NumberColumn(
-                "Valor p", format="%.4f"
-            ),
-            "Significativo": st.column_config.CheckboxColumn(
-                "Significativo"
+            "PSI": st.column_config.NumberColumn(format="%.4f"),
+            "Jensen-Shannon": st.column_config.NumberColumn(
+                format="%.4f"
             ),
         },
     )
 
+    st.caption(
+        "Los valores de KS se utilizan para variables numéricas "
+        "y Chi-cuadrado para variables binarias."
+    )
 
-# ------------------------------ TEMPORAL -----------------------------------
 
-with tab_tiempo:
-    if historial.empty or historial["Fecha_monitoreo"].nunique() < 2:
+# ---------------------------------------------------------------------
+# 10. Evolución temporal y recomendaciones
+# ---------------------------------------------------------------------
+
+with tab_evolucion:
+
+    st.subheader("Evolución temporal del Data Drift")
+
+    historial_valido = historial.dropna(
+        subset=["Fecha_monitoreo", "PSI"]
+    ).copy()
+
+    resumen_temporal = (
+        historial_valido
+        .groupby("Fecha_monitoreo")["PSI"]
+        .agg(
+            PSI_maximo="max",
+            PSI_promedio="mean",
+        )
+        .reset_index()
+        .sort_values("Fecha_monitoreo")
+    )
+
+    if resumen_temporal["Fecha_monitoreo"].nunique() < 2:
+
         st.info(
-            "Aún no hay suficiente historial para mostrar una evolución. "
-            "Cada ejecución de `mlops_pipeline.model_monitoring` agrega "
-            "un registro; se necesitan al menos dos ejecuciones."
+            "Se necesita más de una ejecución del monitoreo "
+            "para mostrar la evolución temporal del PSI. "
+            "Por ahora se presenta el resultado de la ejecución actual."
         )
-        if not historial.empty:
-            st.caption("Hay 1 ejecución registrada hasta ahora.")
-    else:
-        resumen_t = (
-            historial.groupby("Fecha_monitoreo")["PSI"]
-            .agg(PSI_maximo="max", PSI_promedio="mean")
-            .reset_index()
-        )
-        resumen_t["Variacion"] = resumen_t["PSI_maximo"].diff().abs()
 
-        linea = go.Figure()
-        linea.add_trace(
+    else:
+
+        fig = go.Figure()
+
+        fig.add_trace(
             go.Scatter(
-                x=resumen_t["Fecha_monitoreo"],
-                y=resumen_t["PSI_maximo"],
+                x=resumen_temporal["Fecha_monitoreo"],
+                y=resumen_temporal["PSI_maximo"],
                 mode="lines+markers",
                 name="PSI máximo",
-                line=dict(color=ROJO, width=3),
             )
         )
-        linea.add_trace(
+
+        fig.add_trace(
             go.Scatter(
-                x=resumen_t["Fecha_monitoreo"],
-                y=resumen_t["PSI_promedio"],
+                x=resumen_temporal["Fecha_monitoreo"],
+                y=resumen_temporal["PSI_promedio"],
                 mode="lines+markers",
                 name="PSI promedio",
-                line=dict(color=TEAL, width=3),
             )
         )
-        linea.add_hline(
-            y=umbral_mod,
+
+        fig.add_hline(
+            y=0.10,
             line_dash="dash",
-            line_color=AMBAR,
+            line_color="#D99A32",
+            annotation_text="Moderado",
         )
-        linea.add_hline(
-            y=umbral_crit,
+
+        fig.add_hline(
+            y=0.25,
             line_dash="dash",
-            line_color=ROJO,
+            line_color="#C94C4C",
+            annotation_text="Importante",
         )
-        linea.update_layout(title="Evolución del PSI en el tiempo")
+
+        fig.update_layout(
+            title="Comportamiento del PSI a través de las ejecuciones",
+            xaxis_title="Fecha de monitoreo",
+            yaxis_title="PSI",
+        )
+
         st.plotly_chart(
-            estilo_plotly(linea, 380),
+            estilo_grafico(fig, 400),
             use_container_width=True,
         )
 
-        cambios = resumen_t[resumen_t["Variacion"] > 0.05]
-        if not cambios.empty:
-            st.warning(
-                f"Se detectaron **{len(cambios)}** cambio(s) abrupto(s) "
-                "del PSI máximo (variación mayor a 0.05 entre ejecuciones "
-                "consecutivas)."
-            )
+    st.divider()
 
-        variables_h = sorted(historial["Variable"].dropna().unique())
-        variables_default = [
-            variable
-            for variable in reporte.sort_values(
-                "PSI", ascending=False
-            )["Variable"].head(4)
-            if variable in variables_h
-        ]
-        elegidas = st.multiselect(
-            "Consultar evolución por variable",
-            variables_h,
-            default=variables_default,
-        )
-
-        if elegidas:
-            sub = historial[
-                historial["Variable"].isin(elegidas)
-            ].sort_values("Fecha_monitoreo")
-            fig = px.line(
-                sub,
-                x="Fecha_monitoreo",
-                y="PSI",
-                color="Variable",
-                markers=True,
-                title="Evolución del PSI por variable",
-            )
-            st.plotly_chart(
-                estilo_plotly(fig, 380),
-                use_container_width=True,
-            )
-
-
-# ---------------------------- RECOMENDACIONES ------------------------------
-
-with tab_reco:
-    st.subheader("Acciones sugeridas")
-
-    def mostrar_recomendacion(titulo, texto, estado):
-        st.markdown(
-            f"""
-            <div class="reco" style="--acento:{COLOR_ESTADO[estado]}">
-                <b>{ICONO_ESTADO[estado]} {titulo}</b>{texto}
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+    st.subheader("Recomendaciones")
 
     criticas = reporte[
-        reporte["Estado"] == "Crítico"
+        reporte["Estado"] == "Importante"
     ].sort_values("PSI", ascending=False)
+
     moderadas = reporte[
         reporte["Estado"] == "Moderado"
     ].sort_values("PSI", ascending=False)
 
     if not criticas.empty:
-        lista = ", ".join(
-            f"`{variable}`" for variable in criticas["Variable"].head(6)
+
+        variables = ", ".join(
+            criticas["Variable"].head(6).tolist()
         )
+
         mostrar_recomendacion(
-            "Investigar variables con cambio crítico",
-            f"{lista}. Verifica cambios en la fuente de datos, en la "
-            "política de otorgamiento o en el perfil de los clientes, "
-            "y evalúa un reentrenamiento del modelo.",
-            "Crítico",
+            "Investigar cambios importantes",
+            (
+                f"Las siguientes variables presentan cambios importantes: "
+                f"{variables}. Se recomienda revisar las fuentes de datos, "
+                "los procesos de captura y los cambios en el perfil de los "
+                "clientes. También conviene evaluar el desempeño del modelo "
+                "antes de considerar un reentrenamiento."
+            ),
+            "Importante",
         )
 
     if not moderadas.empty:
-        lista = ", ".join(
-            f"`{variable}`"
-            for variable in moderadas["Variable"].head(6)
+
+        variables = ", ".join(
+            moderadas["Variable"].head(6).tolist()
         )
+
         mostrar_recomendacion(
             "Mantener seguimiento",
-            f"{lista}. Revisa su comportamiento en las próximas "
-            "ejecuciones del monitoreo.",
+            (
+                f"Se identificaron cambios moderados en: {variables}. "
+                "Se recomienda observar su comportamiento en los "
+                "siguientes monitoreos."
+            ),
             "Moderado",
         )
 
     if criticas.empty and moderadas.empty:
+
         mostrar_recomendacion(
-            "Sin acciones urgentes",
-            "Las distribuciones se mantienen estables. "
-            "Continúa con el monitoreo periódico.",
+            "Mantener el monitoreo",
+            (
+                "Las variables analizadas presentan distribuciones "
+                "estables según los umbrales de PSI establecidos."
+            ),
             "Estable",
         )
 
-    significativas_estables = reporte[
-        (reporte["Significativo"])
-        & (reporte["Estado"] == "Estable")
-    ]
-    if not significativas_estables.empty:
-        mostrar_recomendacion(
-            "Diferencias significativas de baja magnitud",
-            f"{len(significativas_estables)} variable(s) tienen un "
-            "valor p bajo, pero un PSI estable. Contrasta la significancia "
-            "estadística con la magnitud práctica del cambio.",
-            "Moderado",
-        )
-
-    if (
-        not historial.empty
-        and historial["Fecha_monitoreo"].nunique() >= 2
-    ):
-        if resumen_t["Variacion"].max() > 0.05:
-            mostrar_recomendacion(
-                "Cambio abrupto en el tiempo",
-                "El PSI máximo varió más de 0.05 entre ejecuciones "
-                "consecutivas. Revisa qué cambió en los datos de entrada "
-                "durante ese periodo.",
-                "Crítico",
-            )
-
     st.info(
-        "Detectar data drift no implica necesariamente una pérdida de "
-        "desempeño. Antes de reentrenar, contrasta estas alertas con "
-        "resultados reales del modelo cuando estén disponibles."
+        "La detección de Data Drift indica cambios en los datos de entrada, "
+        "pero no demuestra por sí sola que el modelo haya perdido precisión. "
+        "Es necesario contrastar estos resultados con el desempeño real "
+        "del modelo."
     )
