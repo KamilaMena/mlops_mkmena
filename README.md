@@ -137,7 +137,7 @@ Para autenticar el análisis remoto, el repositorio de GitHub debe tener configu
 
 **Pega aquí la captura del dashboard de SonarCloud:**
 
-![Dashboard de SonarCloud](sonarcloud-dashboard.png)
+![Dashboard de SonarCloud](sonar_dashboard.png)
 
 ## Dependencias y artefactos
 
